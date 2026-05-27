@@ -1,0 +1,25 @@
+1. Start backend:
+run_backend.bat
+
+2. Manual backend start:
+cd backend
+venv\Scripts\activate
+python app.py
+
+3. Chrome extension page:
+chrome://extensions/
+
+4. Backend URL:
+http://127.0.0.1:5000
+
+5. Health check URL:
+http://127.0.0.1:5000/health
+
+6. Daily use:
+- Start backend
+- Reload extension
+- Open X
+- Check Backend
+- Generate replies
+- Insert or copy reply
+- Post manually

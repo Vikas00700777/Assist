@@ -1,0 +1,414 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: min(420px, 100vw);
+  max-width: 100vw;
+  max-height: min(680px, 100vh);
+  margin: 0;
+  font-family: Arial, sans-serif;
+  color: #172033;
+  background: #f7f9fc;
+  overflow-y: auto;
+}
+
+button,
+textarea,
+select,
+input {
+  font: inherit;
+}
+
+.popup-shell {
+  width: 100%;
+  padding: 18px;
+}
+
+.popup-header {
+  margin-bottom: 16px;
+}
+
+.popup-header h1 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: #647084;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.shortcut-hint {
+  margin: 6px 0 0;
+  color: #7a8597;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.input-section,
+.actions-section,
+.suggestions-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.input-section h2,
+.suggestions-section h2 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+label {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+textarea,
+select,
+input[type="text"] {
+  width: 100%;
+  border: 1px solid #d6dce8;
+  border-radius: 8px;
+  color: #172033;
+  background: #ffffff;
+  outline: none;
+}
+
+textarea {
+  min-height: 128px;
+  padding: 11px 12px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+select {
+  height: 40px;
+  padding: 0 10px;
+}
+
+input[type="text"] {
+  height: 40px;
+  padding: 0 11px;
+}
+
+.quick-tone-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  gap: 6px;
+}
+
+.quick-tone-btn {
+  min-height: 30px;
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid #d6dce8;
+  color: #374151;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.quick-tone-btn:hover {
+  background: #eef3fb;
+}
+
+.quick-tone-btn.active {
+  border-color: #2563eb;
+  color: #ffffff;
+  background: #2563eb;
+}
+
+textarea:focus,
+select:focus,
+input[type="text"]:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+}
+
+.actions-section {
+  margin-top: 14px;
+}
+
+.button-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+button {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.28);
+  outline-offset: 2px;
+}
+
+#generateRepliesButton {
+  color: #ffffff;
+  background: #2563eb;
+}
+
+#generateRepliesButton:hover {
+  background: #1d4ed8;
+}
+
+#regenerateBtn {
+  margin-top: 2px;
+}
+
+#uploadScreenshotButton,
+#captureSelectedAreaButton,
+.secondary-btn,
+.light-btn,
+.copy-button,
+.insert-button {
+  color: #243047;
+  background: #e8edf5;
+}
+
+#uploadScreenshotButton:hover,
+#captureSelectedAreaButton:hover,
+.secondary-btn:hover,
+.light-btn:hover,
+.copy-button:hover,
+.insert-button:hover {
+  background: #dce4f0;
+}
+
+.light-btn {
+  min-width: 0;
+  white-space: normal;
+}
+
+.small-btn {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.status-message {
+  min-height: 18px;
+  margin: 12px 0;
+  color: #647084;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.reply-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.collapsible-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e1e7f0;
+}
+
+.collapsible-section summary {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 28px 0 0;
+  color: #172033;
+  font-size: 14px;
+  line-height: 1.3;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.collapsible-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible-section summary::after {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: #243047;
+  background: #e8edf5;
+  content: "+";
+  font-size: 18px;
+  line-height: 23px;
+  text-align: center;
+  transform: translateY(-50%);
+}
+
+.collapsible-section[open] summary::after {
+  content: "-";
+}
+
+.collapsible-section summary:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.28);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.collapsible-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+#saveSettingsBtn {
+  color: #ffffff;
+  background: #2563eb;
+}
+
+#saveSettingsBtn:hover {
+  background: #1d4ed8;
+}
+
+.danger-btn {
+  color: #ffffff;
+  background: #dc2626;
+}
+
+.danger-btn:hover {
+  background: #b91c1c;
+}
+
+.section-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.section-title-row .small-btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.section-label {
+  color: #647084;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.empty-message {
+  margin: 0;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 14px;
+  color: #7a8597;
+  background: #ffffff;
+  font-size: 13px;
+  text-align: center;
+}
+
+.reply-card {
+  border: 1px solid #dce3ee;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.history-card {
+  border: 1px solid #dce3ee;
+  border-radius: 8px;
+  padding: 10px;
+  background: #ffffff;
+}
+
+.history-text {
+  margin: 0;
+  color: #243047;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.history-meta {
+  margin: 6px 0 0;
+  color: #7a8597;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.history-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.history-actions button {
+  min-height: 32px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.reply-card p {
+  margin: 0;
+  color: #243047;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.reply-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.copy-button,
+.insert-button {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+@media (max-width: 340px) {
+  .popup-shell {
+    padding: 14px;
+  }
+
+  .quick-tone-row,
+  .button-row,
+  .history-actions,
+  .reply-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .section-title-row .small-btn {
+    width: 100%;
+  }
+
+  textarea {
+    min-height: 118px;
+  }
+}
