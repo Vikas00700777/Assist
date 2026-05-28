@@ -25,15 +25,15 @@ async function readApiResponse(response) {
   }
 }
 
-async function generateRepliesFromAPI(text, tone, context = "") {
+async function generateRepliesFromAPI(text, tone, context = "", imageData = "") {
   try {
     const response = await fetchWithTimeout(await getApiUrl("/api/generate-replies"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ text, tone, context })
-    }, 30000);
+      body: JSON.stringify({ text, tone, context, imageData })
+    }, imageData ? 45000 : 30000);
 
     const data = await readApiResponse(response);
 

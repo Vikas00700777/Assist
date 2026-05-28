@@ -65,19 +65,61 @@ function insertReplyText(replyText) {
   };
 }
 
-function getSelectedText() {
-  const selectedText = window.getSelection().toString().trim();
+const LATEST_SELECTED_TEXT_KEY = "latestSelectedText";
+const LATEST_SELECTED_TEXT_TIME_KEY = "latestSelectedTextTime";
+let saveSelectedTextTimer = null;
 
+function getCurrentSelectedText() {
+  return (window.getSelection()?.toString() || "").trim();
+}
+
+function saveLatestSelectedText(selectedText) {
   if (!selectedText) {
+    return;
+  }
+
+  chrome.storage.local.set({
+    [LATEST_SELECTED_TEXT_KEY]: selectedText,
+    [LATEST_SELECTED_TEXT_TIME_KEY]: Date.now()
+  });
+}
+
+function queueSelectedTextSave(delay = 300) {
+  clearTimeout(saveSelectedTextTimer);
+
+  saveSelectedTextTimer = setTimeout(() => {
+    saveLatestSelectedText(getCurrentSelectedText());
+  }, delay);
+}
+
+async function getSavedSelectedText() {
+  const result = await chrome.storage.local.get(LATEST_SELECTED_TEXT_KEY);
+  return (result[LATEST_SELECTED_TEXT_KEY] || "").trim();
+}
+
+async function getSelectedText() {
+  const selectedText = getCurrentSelectedText();
+
+  if (selectedText) {
+    saveLatestSelectedText(selectedText);
     return {
-      success: false,
-      message: "Select text on X first, then try again."
+      success: true,
+      text: selectedText
+    };
+  }
+
+  const savedSelectedText = await getSavedSelectedText();
+
+  if (savedSelectedText) {
+    return {
+      success: true,
+      text: savedSelectedText
     };
   }
 
   return {
-    success: true,
-    text: selectedText
+    success: false,
+    message: "Select text on X first, then try again."
   };
 }
 
@@ -101,13 +143,16 @@ function removeCaptureOverlay() {
     return;
   }
 
-  document.removeEventListener("mousemove", handleCaptureMouseMove);
-  document.removeEventListener("mouseup", handleCaptureMouseUp);
+  document.removeEventListener("pointermove", handleCapturePointerMove);
+  document.removeEventListener("pointerup", handleCapturePointerUp);
+  document.removeEventListener("pointercancel", handleCapturePointerCancel);
   document.removeEventListener("keydown", handleCaptureKeyDown);
 
+  document.body.style.overflow = captureState.originalBodyOverflow;
   captureState.overlay.remove();
   captureState.selection.remove();
   captureState.hint.remove();
+  captureState.cancelButton.remove();
   captureState = null;
 }
 
@@ -123,20 +168,34 @@ function updateSelectionRectangle(currentX, currentY) {
   captureState.selection.style.height = `${height}px`;
 }
 
-function handleCaptureMouseDown(event) {
+function handleCapturePointerDown(event) {
+  if (event.target === captureState.cancelButton) {
+    return;
+  }
+
   event.preventDefault();
 
   captureState.isDragging = true;
+  captureState.pointerId = event.pointerId;
   captureState.startX = event.clientX;
   captureState.startY = event.clientY;
   updateSelectionRectangle(event.clientX, event.clientY);
 
-  document.addEventListener("mousemove", handleCaptureMouseMove);
-  document.addEventListener("mouseup", handleCaptureMouseUp);
+  if (captureState.overlay.setPointerCapture) {
+    captureState.overlay.setPointerCapture(event.pointerId);
+  }
+
+  document.addEventListener("pointermove", handleCapturePointerMove, { passive: false });
+  document.addEventListener("pointerup", handleCapturePointerUp, { passive: false });
+  document.addEventListener("pointercancel", handleCapturePointerCancel, { passive: false });
 }
 
-function handleCaptureMouseMove(event) {
+function handleCapturePointerMove(event) {
   if (!captureState?.isDragging) {
+    return;
+  }
+
+  if (captureState.pointerId !== null && event.pointerId !== captureState.pointerId) {
     return;
   }
 
@@ -144,8 +203,12 @@ function handleCaptureMouseMove(event) {
   updateSelectionRectangle(event.clientX, event.clientY);
 }
 
-function handleCaptureMouseUp(event) {
+function handleCapturePointerUp(event) {
   if (!captureState?.isDragging) {
+    return;
+  }
+
+  if (captureState.pointerId !== null && event.pointerId !== captureState.pointerId) {
     return;
   }
 
@@ -159,8 +222,8 @@ function handleCaptureMouseUp(event) {
 
   removeCaptureOverlay();
 
-  if (width < 20 || height < 20) {
-    sendCaptureStatus("error", "Selected area is too small. Try a larger area.");
+  if (width < 10 || height < 10) {
+    sendCaptureStatus("error", "Selected area is too small. Try again.");
     return;
   }
 
@@ -169,6 +232,16 @@ function handleCaptureMouseUp(event) {
     rect: { left, top, width, height },
     devicePixelRatio
   });
+}
+
+function handleCapturePointerCancel(event) {
+  if (!captureState) {
+    return;
+  }
+
+  event.preventDefault();
+  removeCaptureOverlay();
+  sendCaptureStatus("error", "Area capture cancelled.");
 }
 
 function handleCaptureKeyDown(event) {
@@ -196,34 +269,70 @@ function startAreaCapture() {
 
   const hint = document.createElement("div");
   hint.className = "ai-reply-capture-hint";
-  hint.textContent = "Drag to select an area. Press Escape to cancel.";
+  hint.textContent = "Drag with finger to select area. Tap Cancel to stop.";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "ai-reply-capture-cancel";
+  cancelButton.textContent = "Cancel";
 
   document.body.appendChild(overlay);
   document.body.appendChild(selection);
   document.body.appendChild(hint);
+  document.body.appendChild(cancelButton);
 
   captureState = {
     overlay,
     selection,
     hint,
+    cancelButton,
     isDragging: false,
+    pointerId: null,
     startX: 0,
-    startY: 0
+    startY: 0,
+    originalBodyOverflow: document.body.style.overflow
   };
 
-  overlay.addEventListener("mousedown", handleCaptureMouseDown);
+  document.body.style.overflow = "hidden";
+
+  overlay.addEventListener("pointerdown", handleCapturePointerDown, { passive: false });
+  cancelButton.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  }, { passive: false });
+  cancelButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    removeCaptureOverlay();
+    sendCaptureStatus("error", "Area capture cancelled.");
+  });
   document.addEventListener("keydown", handleCaptureKeyDown);
 
   return {
     success: true,
-    message: "Select an area on the page."
+    message: "Drag with finger to select area. Tap Cancel to stop."
   };
 }
 
+document.addEventListener("selectionchange", () => {
+  queueSelectedTextSave(300);
+});
+
+document.addEventListener("mouseup", () => {
+  queueSelectedTextSave(0);
+});
+
+document.addEventListener("touchend", () => {
+  queueSelectedTextSave(0);
+}, { passive: true });
+
+document.addEventListener("pointerup", () => {
+  queueSelectedTextSave(0);
+}, { passive: true });
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "GET_SELECTED_TEXT") {
-    sendResponse(getSelectedText());
-    return false;
+    getSelectedText().then(sendResponse);
+    return true;
   }
 
   if (message.type === "START_AREA_CAPTURE") {

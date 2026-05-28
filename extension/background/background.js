@@ -1,5 +1,6 @@
 const BACKEND_URL_KEY = "backendUrl";
 const DEFAULT_BACKEND_URL = "https://assist-qw4s.onrender.com";
+const MOBILE_CAPTURE_UNSUPPORTED_MESSAGE = "Capture Area is not supported by this mobile browser. Please use Upload Screenshot instead.";
 
 async function getBackendUrl() {
   const result = await chrome.storage.local.get(BACKEND_URL_KEY);
@@ -129,15 +130,22 @@ async function extractTextFromCroppedImage(imageData) {
 
 async function handleCaptureSelectedArea(message, sender) {
   try {
-    if (!sender.tab?.windowId) {
+    if (sender.tab?.windowId === undefined || sender.tab?.windowId === null) {
       throw new Error("Could not identify the active tab.");
     }
 
     await saveCaptureStatus("loading", "Extracting text from selected area...");
 
-    const visibleTabImage = await chrome.tabs.captureVisibleTab(sender.tab.windowId, {
-      format: "png"
-    });
+    let visibleTabImage;
+
+    try {
+      visibleTabImage = await chrome.tabs.captureVisibleTab(sender.tab.windowId, {
+        format: "png"
+      });
+    } catch (error) {
+      throw new Error(MOBILE_CAPTURE_UNSUPPORTED_MESSAGE);
+    }
+
     const croppedImage = await cropImageDataUrl(
       visibleTabImage,
       message.rect,

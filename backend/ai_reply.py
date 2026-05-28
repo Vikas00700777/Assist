@@ -143,13 +143,82 @@ Rules:
 """
 
 
-def _request_replies_from_gemini(text, tone, context="", fallback=False):
+def _build_multimodal_replies_prompt(text, tone, context="", fallback=False):
+    fallback_instruction = (
+        "The previous response did not include 10 usable unique replies. "
+        "Try again with clearer, distinct, safe suggestions that follow every rule below.\n\n"
+        if fallback
+        else ""
+    )
+
+    return f"""
+{fallback_instruction}You are helping the user reply on X.
+Analyze the full post using:
+1. Original Post / Context text
+2. Reply or Comment to Answer
+3. Uploaded image or meme screenshot
+
+Important:
+- Understand visible text in the image.
+- Understand meme meaning, joke, sarcasm, screenshot context, and image content.
+- If the image contains most of the meaning, use it.
+- If context text and image disagree, prioritize visible image/post content.
+- Generate replies as the original post author.
+- Directly answer the reply/comment if provided.
+- If no reply/comment is provided, generate general replies to the post.
+- Do not be rude.
+- Keep replies natural, short, and suitable for X.
+- Generate exactly 10 replies.
+- Each reply must be under 280 characters.
+- Return valid JSON only.
+- Do not include spam, engagement bait, scams, phishing, deceptive claims, or illegal activity.
+- Do not include abuse, hate, harassment, slurs, threats, intimidation, doxxing, or private personal data.
+- Do not help with violence, self-harm, sexual exploitation, cyber abuse, fraud, weapons, or other unsafe content.
+- If the post or image is rude, toxic, hateful, or baiting, generate calm, respectful replies.
+- If the post or image asks for harmful or illegal content, generate safe neutral replies that do not assist wrongdoing.
+
+Original Post / Context:
+{context}
+
+Reply or Comment to Answer:
+{text}
+
+Tone:
+{tone}
+
+Return only valid JSON in this exact shape:
+{{
+  "replies": [
+    "reply one",
+    "reply two",
+    "reply three",
+    "reply four",
+    "reply five",
+    "reply six",
+    "reply seven",
+    "reply eight",
+    "reply nine",
+    "reply ten"
+  ]
+}}
+"""
+
+
+def _request_replies_from_gemini(text, tone, context="", fallback=False, image_data_url=""):
     prompt = _build_replies_prompt(text, tone, context=context, fallback=fallback)
+    contents = prompt
+
+    if image_data_url:
+        mime_type, image_bytes = _parse_image_data_url(image_data_url)
+        contents = [
+            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+            _build_multimodal_replies_prompt(text, tone, context=context, fallback=fallback),
+        ]
 
     response = _run_with_key_rotation(
         lambda client: client.models.generate_content(
             model=MODEL_NAME,
-            contents=prompt,
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
             ),
@@ -159,11 +228,17 @@ def _request_replies_from_gemini(text, tone, context="", fallback=False):
     return parse_replies(response.text or "")
 
 
-def generate_replies(text, tone, context=""):
-    replies = _request_replies_from_gemini(text, tone, context=context)
+def generate_replies(text, tone, context="", image_data_url=""):
+    replies = _request_replies_from_gemini(text, tone, context=context, image_data_url=image_data_url)
 
     if len(replies) < REPLY_COUNT:
-        fallback_replies = _request_replies_from_gemini(text, tone, context=context, fallback=True)
+        fallback_replies = _request_replies_from_gemini(
+            text,
+            tone,
+            context=context,
+            fallback=True,
+            image_data_url=image_data_url,
+        )
         replies = _dedupe_replies([*replies, *fallback_replies])
 
     return replies[:REPLY_COUNT]

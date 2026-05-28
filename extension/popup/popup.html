@@ -23,7 +23,6 @@
           rows="3"
           placeholder="Paste the post you want to reply to, or add thread context here..."
         ></textarea>
-        <button id="useSelectedAsContextBtn" class="light-btn" type="button">Use Selected Text as Context</button>
 
         <label for="postText">Reply or Comment to Answer (Optional)</label>
         <textarea
@@ -33,7 +32,10 @@
           rows="5"
           placeholder="Paste a reply/comment here if you are answering someone in a thread..."
         ></textarea>
-        <button id="useSelectedTextBtn" class="light-btn" type="button">Use Selected Text as Reply</button>
+        <div class="selected-text-actions">
+          <button id="useSelectedAsContextBtn" class="light-btn" type="button">Use Selected Text as Context</button>
+          <button id="useSelectedTextBtn" class="light-btn" type="button">Use Selected Text as Reply</button>
+        </div>
 
         <label for="toneSelect">Tone</label>
         <select id="toneSelect" name="tone" hidden>
@@ -67,13 +69,26 @@
       </section>
 
       <section class="actions-section" aria-label="Reply actions">
-        <button id="generateRepliesButton" type="button">Generate Replies</button>
-        <button id="regenerateBtn" class="secondary-btn" type="button">Regenerate Replies</button>
-        <div class="button-row">
-          <button id="uploadScreenshotButton" class="light-btn" type="button">Upload Screenshot</button>
-          <button id="captureSelectedAreaButton" class="light-btn" type="button">Capture Area</button>
+        <div class="primary-actions">
+          <button id="generateRepliesButton" type="button">Generate Replies</button>
+          <button id="regenerateBtn" class="secondary-btn" type="button">Regenerate Replies</button>
         </div>
+        <button id="uploadScreenshotButton" class="light-btn upload-btn" type="button">Upload Screenshot</button>
         <input id="screenshotInput" type="file" accept="image/*" hidden>
+        <label class="checkbox-row" for="analyzeImageWithReply">
+          <input id="analyzeImageWithReply" type="checkbox" checked disabled>
+          <span>Analyze uploaded image with reply</span>
+        </label>
+        <div class="attached-image-row">
+          <span id="attachedImageStatus">No image attached</span>
+          <button id="clearAttachedImageBtn" class="light-btn small-btn" type="button">Clear Attached Image</button>
+        </div>
+        <div id="captureAreaWrap" class="capture-area-wrap">
+          <button id="captureSelectedAreaButton" class="light-btn" type="button">Capture Area</button>
+          <p id="captureUnsupportedNote" class="helper-message" hidden>
+            Capture Area is not supported on this mobile browser. Use Upload Screenshot.
+          </p>
+        </div>
         <div class="button-row">
           <button id="clearTextBtn" class="light-btn" type="button">Clear Text</button>
           <button id="clearRepliesBtn" class="light-btn" type="button">Clear Replies</button>
@@ -145,6 +160,7 @@
 
           <button id="saveSettingsBtn" type="button">Save Settings</button>
           <button id="testBackendBtn" class="light-btn" type="button">Check Backend</button>
+          <p id="backendStatusMessage" class="settings-status-message" role="status" aria-live="polite"></p>
           <button id="resetExtensionBtn" class="danger-btn" type="button">Reset Extension</button>
         </div>
       </details>
