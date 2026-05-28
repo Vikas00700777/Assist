@@ -15,4 +15,3 @@ class Config:
         ]
         if key and key.strip()
     ]
-    FLASK_PORT = int(os.getenv("FLASK_PORT", 5000))

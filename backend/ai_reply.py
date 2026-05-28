@@ -86,7 +86,7 @@ def parse_replies(output_text):
     return _dedupe_replies(replies)[:REPLY_COUNT]
 
 
-def _build_replies_prompt(text, tone, fallback=False):
+def _build_replies_prompt(text, tone, context="", fallback=False):
     fallback_instruction = (
         "The previous response did not include 10 usable unique replies. "
         "Try again with clearer, distinct, safe suggestions that follow every rule below.\n\n"
@@ -95,11 +95,25 @@ def _build_replies_prompt(text, tone, fallback=False):
     )
 
     return f"""
-{fallback_instruction}Generate exactly 10 short reply suggestions for X/Twitter.
+{fallback_instruction}You are helping the user reply to someone on X.
+The user may provide original post context and a reply/comment.
+Generate replies as the original post author.
+Use the context to understand the situation.
+Directly answer the reply/comment.
+Do not ignore the reply/comment.
+Do not be rude.
+Keep replies natural and human-like.
 
-Tone: {tone}
-Post or message:
+Original Post / Context:
+{context}
+
+Reply or Comment to Answer:
 {text}
+
+Tone:
+{tone}
+
+Generate exactly 10 replies that answer the reply/comment using the original context.
 
 Rules:
 - Return only valid JSON in this exact shape:
@@ -129,8 +143,8 @@ Rules:
 """
 
 
-def _request_replies_from_gemini(text, tone, fallback=False):
-    prompt = _build_replies_prompt(text, tone, fallback=fallback)
+def _request_replies_from_gemini(text, tone, context="", fallback=False):
+    prompt = _build_replies_prompt(text, tone, context=context, fallback=fallback)
 
     response = _run_with_key_rotation(
         lambda client: client.models.generate_content(
@@ -145,11 +159,11 @@ def _request_replies_from_gemini(text, tone, fallback=False):
     return parse_replies(response.text or "")
 
 
-def generate_replies(text, tone):
-    replies = _request_replies_from_gemini(text, tone)
+def generate_replies(text, tone, context=""):
+    replies = _request_replies_from_gemini(text, tone, context=context)
 
     if len(replies) < REPLY_COUNT:
-        fallback_replies = _request_replies_from_gemini(text, tone, fallback=True)
+        fallback_replies = _request_replies_from_gemini(text, tone, context=context, fallback=True)
         replies = _dedupe_replies([*replies, *fallback_replies])
 
     return replies[:REPLY_COUNT]

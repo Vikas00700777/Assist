@@ -1,8 +1,13 @@
+const contextText = document.getElementById("contextText");
 const postText = document.getElementById("postText");
 const toneSelect = document.getElementById("toneSelect");
-const quickToneButtons = document.querySelectorAll(".quick-tone-btn");
+const toneMenuButton = document.getElementById("toneMenuButton");
+const toneMenuLabel = document.getElementById("toneMenuLabel");
+const toneMenu = document.getElementById("toneMenu");
+const toneOptions = toneMenu.querySelectorAll(".tone-option");
 const generateRepliesButton = document.getElementById("generateRepliesButton");
 const regenerateBtn = document.getElementById("regenerateBtn");
+const useSelectedAsContextBtn = document.getElementById("useSelectedAsContextBtn");
 const useSelectedTextBtn = document.getElementById("useSelectedTextBtn");
 const uploadScreenshotButton = document.getElementById("uploadScreenshotButton");
 const screenshotInput = document.getElementById("screenshotInput");
@@ -11,6 +16,10 @@ const clearTextBtn = document.getElementById("clearTextBtn");
 const clearRepliesBtn = document.getElementById("clearRepliesBtn");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 const defaultToneSelect = document.getElementById("defaultToneSelect");
+const defaultToneMenuButton = document.getElementById("defaultToneMenuButton");
+const defaultToneMenuLabel = document.getElementById("defaultToneMenuLabel");
+const defaultToneMenu = document.getElementById("defaultToneMenu");
+const defaultToneOptions = defaultToneMenu.querySelectorAll(".default-tone-option");
 const backendUrlInput = document.getElementById("backendUrlInput");
 const saveSettingsBtn = document.getElementById("saveSettingsBtn");
 const testBackendBtn = document.getElementById("testBackendBtn");
@@ -35,6 +44,7 @@ function setButtonLoading(button, isLoading, loadingText, normalText) {
 function setLoading(isLoading) {
   setButtonLoading(generateRepliesButton, isLoading, "Generating...", "Generate Replies");
   setButtonLoading(regenerateBtn, isLoading, "Regenerating...", "Regenerate Replies");
+  useSelectedAsContextBtn.disabled = isLoading;
   useSelectedTextBtn.disabled = isLoading;
   uploadScreenshotButton.disabled = isLoading;
   captureSelectedAreaButton.disabled = isLoading;
@@ -44,6 +54,7 @@ function setScreenshotLoading(isLoading) {
   setButtonLoading(uploadScreenshotButton, isLoading, "Extracting...", "Upload Screenshot");
   generateRepliesButton.disabled = isLoading;
   regenerateBtn.disabled = isLoading;
+  useSelectedAsContextBtn.disabled = isLoading;
   useSelectedTextBtn.disabled = isLoading;
   captureSelectedAreaButton.disabled = isLoading;
 }
@@ -52,10 +63,40 @@ function setCaptureLoading(isLoading) {
   setButtonLoading(captureSelectedAreaButton, isLoading, "Starting...", "Capture Area");
 }
 
-function updateActiveQuickTone() {
-  quickToneButtons.forEach((button) => {
-    button.classList.toggle("active", button.dataset.tone === toneSelect.value);
+function getToneLabel(selectElement, tone) {
+  const selectedOption = selectElement.querySelector(`option[value="${tone}"]`);
+  return selectedOption ? selectedOption.textContent : "Friendly";
+}
+
+function syncMenu(selectElement, labelElement, options) {
+  labelElement.textContent = getToneLabel(selectElement, selectElement.value);
+
+  options.forEach((option) => {
+    const isSelected = option.dataset.tone === selectElement.value;
+    option.classList.toggle("selected", isSelected);
+    option.setAttribute("aria-selected", isSelected ? "true" : "false");
   });
+}
+
+function syncToneMenu() {
+  syncMenu(toneSelect, toneMenuLabel, toneOptions);
+}
+
+function syncDefaultToneMenu() {
+  syncMenu(defaultToneSelect, defaultToneMenuLabel, defaultToneOptions);
+}
+
+function setMenuOpen(menuElement, buttonElement, isOpen) {
+  menuElement.hidden = !isOpen;
+  buttonElement.setAttribute("aria-expanded", isOpen ? "true" : "false");
+}
+
+function setToneMenuOpen(isOpen) {
+  setMenuOpen(toneMenu, toneMenuButton, isOpen);
+}
+
+function setDefaultToneMenuOpen(isOpen) {
+  setMenuOpen(defaultToneMenu, defaultToneMenuButton, isOpen);
 }
 
 function clearReplies() {
@@ -71,12 +112,16 @@ function showEmptyHistory() {
 }
 
 function clearText() {
+  contextText.value = "";
   postText.value = "";
   postText.focus();
   showStatus("Text cleared.", "success");
 
   clearDraftText().catch((error) => {
     console.error("Could not clear draft text.", error);
+  });
+  clearDraftContextText().catch((error) => {
+    console.error("Could not clear draft context.", error);
   });
 }
 
@@ -134,7 +179,9 @@ function renderHistory(historyItems) {
     useTextButton.className = "light-btn";
     useTextButton.textContent = "Use Text";
     useTextButton.addEventListener("click", () => {
-      postText.value = item.text || "";
+      contextText.value = item.context || "";
+      postText.value = item.replyText ?? item.text ?? "";
+      saveCurrentDraftContextText();
       saveCurrentDraftText();
 
       if (item.tone) {
@@ -254,9 +301,11 @@ async function insertReplyIntoActiveTab(replyText, insertButton) {
   }
 }
 
-async function useSelectedTextFromActiveTab() {
+async function useSelectedTextFromActiveTab(targetElement, button, successMessage) {
+  const normalText = button.dataset.normalText || button.textContent;
+
   try {
-    setButtonLoading(useSelectedTextBtn, true, "Getting...", "Use Selected Text");
+    setButtonLoading(button, true, "Getting...", normalText);
     const activeTab = await getActiveTab();
 
     if (!activeTab || !isSupportedXUrl(activeTab.url)) {
@@ -273,14 +322,20 @@ async function useSelectedTextFromActiveTab() {
       return;
     }
 
-    postText.value = response.text || "";
-    await saveDraftText(postText.value);
-    postText.focus();
-    showStatus("Selected text added.", "success");
+    targetElement.value = response.text || "";
+
+    if (targetElement === contextText) {
+      await saveDraftContextText(targetElement.value);
+    } else {
+      await saveDraftText(targetElement.value);
+    }
+
+    targetElement.focus();
+    showStatus(successMessage, "success");
   } catch (error) {
     showStatus("Could not get selected text. Refresh the X tab and try again.", "error");
   } finally {
-    setButtonLoading(useSelectedTextBtn, false, "Getting...", "Use Selected Text");
+    setButtonLoading(button, false, "Getting...", normalText);
   }
 }
 
@@ -360,12 +415,14 @@ function renderReplies(replies) {
 }
 
 async function handleGenerateReplies() {
-  const text = postText.value.trim();
+  const context = contextText.value.trim();
+  const replyText = postText.value.trim();
+  const text = replyText || context;
   const tone = toneSelect.value;
 
   if (!text) {
-    showStatus("Please paste some text before generating replies.", "error");
-    postText.focus();
+    showStatus("Paste a post, reply, or comment before generating replies.", "error");
+    contextText.focus();
     return;
   }
 
@@ -374,7 +431,7 @@ async function handleGenerateReplies() {
   showStatus("Generating replies...", "info");
 
   try {
-    const result = await generateRepliesFromAPI(text, tone);
+    const result = await generateRepliesFromAPI(text, tone, replyText ? context : "");
 
     if (!result.success) {
       showEmptyReplies();
@@ -386,7 +443,7 @@ async function handleGenerateReplies() {
     renderReplies(replies);
 
     await saveRecentReplies(replies);
-    await saveReplyHistoryItem(text, tone, replies);
+    await saveReplyHistoryItem(text, tone, replies, context, replyText);
     await loadReplyHistory();
 
     showStatus("Replies generated successfully.", "success");
@@ -409,7 +466,7 @@ async function loadSavedTone() {
       toneSelect.value = defaultTone;
     }
 
-    updateActiveQuickTone();
+    syncToneMenu();
   } catch (error) {
     console.error("Could not load saved tone.", error);
   }
@@ -422,6 +479,7 @@ async function loadSettings() {
 
     defaultToneSelect.value = defaultTone;
     backendUrlInput.value = backendUrl;
+    syncDefaultToneMenu();
   } catch (error) {
     console.error("Could not load settings.", error);
   }
@@ -429,7 +487,12 @@ async function loadSettings() {
 
 async function loadDraftText() {
   try {
+    const draftContextText = await getDraftContextText();
     const draftText = await getDraftText();
+
+    if (!contextText.value.trim() && draftContextText) {
+      contextText.value = draftContextText;
+    }
 
     if (!postText.value.trim() && draftText) {
       postText.value = draftText;
@@ -445,16 +508,19 @@ function saveCurrentDraftText() {
   });
 }
 
-function isValidBackendUrl(url) {
-  return url.startsWith("http://") || url.startsWith("https://");
+function saveCurrentDraftContextText() {
+  saveDraftContextText(contextText.value).catch((error) => {
+    console.error("Could not save draft context.", error);
+  });
 }
 
 async function saveSettings() {
   const defaultTone = defaultToneSelect.value;
   const backendUrl = backendUrlInput.value.trim().replace(/\/$/, "");
 
-  if (!isValidBackendUrl(backendUrl)) {
-    showStatus("Backend URL must start with http:// or https://.", "error");
+  if (backendUrl !== "https://assist-qw4s.onrender.com") {
+    showStatus("Use the production Render backend URL.", "error");
+    backendUrlInput.value = "https://assist-qw4s.onrender.com";
     backendUrlInput.focus();
     return;
   }
@@ -463,7 +529,7 @@ async function saveSettings() {
     await saveDefaultTone(defaultTone);
     await saveBackendUrl(backendUrl);
     toneSelect.value = defaultTone;
-    updateActiveQuickTone();
+    syncToneMenu();
     showStatus("Settings saved.", "success");
   } catch (error) {
     showStatus("Could not save settings.", "error");
@@ -500,13 +566,15 @@ async function resetExtension() {
   try {
     await resetAllExtensionData();
 
+    contextText.value = "";
     postText.value = "";
     toneSelect.value = "friendly";
     defaultToneSelect.value = "friendly";
-    backendUrlInput.value = "http://127.0.0.1:5000";
+    backendUrlInput.value = "https://assist-qw4s.onrender.com";
     showEmptyReplies();
     showEmptyHistory();
-    updateActiveQuickTone();
+    syncToneMenu();
+    syncDefaultToneMenu();
     showStatus("Extension reset successfully.", "success");
   } catch (error) {
     showStatus("Could not reset extension data.", "error");
@@ -602,6 +670,8 @@ function toggleDetails(detailsElement) {
 
 function handleKeyboardShortcuts(event) {
   if (event.key === "Escape") {
+    setToneMenuOpen(false);
+    setDefaultToneMenuOpen(false);
     statusMessage.textContent = "";
     delete statusMessage.dataset.type;
     return;
@@ -637,33 +707,70 @@ function handleKeyboardShortcuts(event) {
   }
 }
 
+useSelectedAsContextBtn.dataset.normalText = "Use Selected Text as Context";
+useSelectedTextBtn.dataset.normalText = "Use Selected Text as Reply";
+
 generateRepliesButton.addEventListener("click", handleGenerateReplies);
 
 regenerateBtn.addEventListener("click", handleGenerateReplies);
 
-useSelectedTextBtn.addEventListener("click", useSelectedTextFromActiveTab);
+useSelectedAsContextBtn.addEventListener("click", () => {
+  useSelectedTextFromActiveTab(contextText, useSelectedAsContextBtn, "Selected text added as context.");
+});
 
-quickToneButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const tone = button.dataset.tone;
-    toneSelect.value = tone;
-    updateActiveQuickTone();
-    showStatus(`${button.textContent} tone selected.`, "success");
+useSelectedTextBtn.addEventListener("click", () => {
+  useSelectedTextFromActiveTab(postText, useSelectedTextBtn, "Selected text added as reply.");
+});
 
-    saveLastTone(tone).catch((error) => {
+toneMenuButton.addEventListener("click", () => {
+  setToneMenuOpen(toneMenu.hidden);
+});
+
+toneOptions.forEach((option) => {
+  option.addEventListener("click", () => {
+    toneSelect.value = option.dataset.tone;
+    syncToneMenu();
+    setToneMenuOpen(false);
+
+    saveLastTone(toneSelect.value).catch((error) => {
       console.error("Could not save selected tone.", error);
     });
   });
 });
 
+defaultToneMenuButton.addEventListener("click", () => {
+  setDefaultToneMenuOpen(defaultToneMenu.hidden);
+});
+
+defaultToneOptions.forEach((option) => {
+  option.addEventListener("click", () => {
+    defaultToneSelect.value = option.dataset.tone;
+    syncDefaultToneMenu();
+    setDefaultToneMenuOpen(false);
+  });
+});
+
 toneSelect.addEventListener("change", () => {
-  updateActiveQuickTone();
+  syncToneMenu();
 
   saveLastTone(toneSelect.value).catch((error) => {
     console.error("Could not save selected tone.", error);
   });
 });
 
+defaultToneSelect.addEventListener("change", syncDefaultToneMenu);
+
+document.addEventListener("click", (event) => {
+  if (!toneMenu.hidden && !event.target.closest("#toneSelectMenu")) {
+    setToneMenuOpen(false);
+  }
+
+  if (!defaultToneMenu.hidden && !event.target.closest("#defaultToneSelectMenu")) {
+    setDefaultToneMenuOpen(false);
+  }
+});
+
+contextText.addEventListener("input", saveCurrentDraftContextText);
 postText.addEventListener("input", saveCurrentDraftText);
 
 uploadScreenshotButton.addEventListener("click", () => {

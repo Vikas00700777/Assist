@@ -4,7 +4,8 @@ const REPLY_HISTORY_KEY = "replyHistory";
 const DEFAULT_TONE_KEY = "defaultTone";
 const BACKEND_URL_KEY = "backendUrl";
 const DRAFT_TEXT = "draftText";
-const DEFAULT_BACKEND_URL = "http://127.0.0.1:5000";
+const DRAFT_CONTEXT_TEXT = "draftContextText";
+const DEFAULT_BACKEND_URL = "https://assist-qw4s.onrender.com";
 
 function saveLastTone(tone) {
   return chrome.storage.local.set({ [LAST_TONE_KEY]: tone });
@@ -33,9 +34,11 @@ async function getReplyHistory() {
   return result[REPLY_HISTORY_KEY] || [];
 }
 
-async function saveReplyHistoryItem(text, tone, replies) {
+async function saveReplyHistoryItem(text, tone, replies, context = "", replyText = text) {
   const history = await getReplyHistory();
   const historyItem = {
+    context,
+    replyText,
     text,
     tone,
     replies,
@@ -54,13 +57,26 @@ function saveDraftText(text) {
   return chrome.storage.local.set({ [DRAFT_TEXT]: text });
 }
 
+function saveDraftContextText(text) {
+  return chrome.storage.local.set({ [DRAFT_CONTEXT_TEXT]: text });
+}
+
 async function getDraftText() {
   const result = await chrome.storage.local.get(DRAFT_TEXT);
   return result[DRAFT_TEXT] || "";
 }
 
+async function getDraftContextText() {
+  const result = await chrome.storage.local.get(DRAFT_CONTEXT_TEXT);
+  return result[DRAFT_CONTEXT_TEXT] || "";
+}
+
 function clearDraftText() {
   return chrome.storage.local.remove(DRAFT_TEXT);
+}
+
+function clearDraftContextText() {
+  return chrome.storage.local.remove(DRAFT_CONTEXT_TEXT);
 }
 
 function resetAllExtensionData() {
@@ -82,5 +98,7 @@ function saveBackendUrl(url) {
 
 async function getBackendUrl() {
   const result = await chrome.storage.local.get(BACKEND_URL_KEY);
-  return result[BACKEND_URL_KEY] || DEFAULT_BACKEND_URL;
+  const backendUrl = result[BACKEND_URL_KEY];
+
+  return backendUrl === DEFAULT_BACKEND_URL ? backendUrl : DEFAULT_BACKEND_URL;
 }

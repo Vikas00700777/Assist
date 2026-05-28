@@ -1,10 +1,11 @@
 const BACKEND_URL_KEY = "backendUrl";
-const DEFAULT_BACKEND_URL = "http://127.0.0.1:5000";
+const DEFAULT_BACKEND_URL = "https://assist-qw4s.onrender.com";
 
 async function getBackendUrl() {
   const result = await chrome.storage.local.get(BACKEND_URL_KEY);
+  const backendUrl = result[BACKEND_URL_KEY];
 
-  return result[BACKEND_URL_KEY] || DEFAULT_BACKEND_URL;
+  return backendUrl === DEFAULT_BACKEND_URL ? backendUrl : DEFAULT_BACKEND_URL;
 }
 
 async function fetchWithTimeout(url, options = {}, timeout = 30000) {

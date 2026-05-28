@@ -11,22 +11,32 @@
     <main class="popup-main">
       <header class="popup-header">
         <h1>X Assistant</h1>
-        <p class="subtitle">Generate smart replies for X posts and comments.</p>
-        <p class="shortcut-hint">Ctrl + Enter to generate</p>
       </header>
 
       <section class="input-section" aria-labelledby="input-heading">
-        <h2 id="input-heading">Post or Reply Text</h2>
+        <h2 id="input-heading">Reply Context</h2>
+        <label for="contextText">Post / Context</label>
+        <textarea
+          id="contextText"
+          class="context-textarea"
+          name="contextText"
+          rows="3"
+          placeholder="Paste the post you want to reply to, or add thread context here..."
+        ></textarea>
+        <button id="useSelectedAsContextBtn" class="light-btn" type="button">Use Selected Text as Context</button>
+
+        <label for="postText">Reply or Comment to Answer (Optional)</label>
         <textarea
           id="postText"
+          class="reply-textarea"
           name="postText"
-          rows="6"
-          placeholder="Paste the post or reply text here"
+          rows="5"
+          placeholder="Paste a reply/comment here if you are answering someone in a thread..."
         ></textarea>
-        <button id="useSelectedTextBtn" class="light-btn" type="button">Use Selected Text</button>
+        <button id="useSelectedTextBtn" class="light-btn" type="button">Use Selected Text as Reply</button>
 
         <label for="toneSelect">Tone</label>
-        <select id="toneSelect" name="tone">
+        <select id="toneSelect" name="tone" hidden>
           <option value="friendly">Friendly</option>
           <option value="professional">Professional</option>
           <option value="funny">Funny</option>
@@ -34,11 +44,25 @@
           <option value="supportive">Supportive</option>
           <option value="hinglish">Hinglish</option>
         </select>
-        <div class="quick-tone-row" aria-label="Quick tone choices">
-          <button class="quick-tone-btn" type="button" data-tone="friendly">Friendly</button>
-          <button class="quick-tone-btn" type="button" data-tone="funny">Funny</button>
-          <button class="quick-tone-btn" type="button" data-tone="short">Short</button>
-          <button class="quick-tone-btn" type="button" data-tone="hinglish">Hinglish</button>
+        <div class="tone-select" id="toneSelectMenu">
+          <button
+            id="toneMenuButton"
+            class="tone-menu-button"
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+          >
+            <span id="toneMenuLabel">Friendly</span>
+            <span class="tone-menu-caret" aria-hidden="true"></span>
+          </button>
+          <div class="tone-menu" id="toneMenu" role="listbox" aria-label="Tone options" hidden>
+            <button class="tone-option" type="button" role="option" data-tone="friendly">Friendly</button>
+            <button class="tone-option" type="button" role="option" data-tone="professional">Professional</button>
+            <button class="tone-option" type="button" role="option" data-tone="funny">Funny</button>
+            <button class="tone-option" type="button" role="option" data-tone="short">Short</button>
+            <button class="tone-option" type="button" role="option" data-tone="supportive">Supportive</button>
+            <button class="tone-option" type="button" role="option" data-tone="hinglish">Hinglish</button>
+          </div>
         </div>
       </section>
 
@@ -82,7 +106,7 @@
         <summary id="settings-heading">Settings</summary>
         <div class="collapsible-content">
           <label for="defaultToneSelect">Default Tone</label>
-          <select id="defaultToneSelect" name="defaultTone">
+          <select id="defaultToneSelect" name="defaultTone" hidden>
             <option value="friendly">Friendly</option>
             <option value="professional">Professional</option>
             <option value="funny">Funny</option>
@@ -90,13 +114,33 @@
             <option value="supportive">Supportive</option>
             <option value="hinglish">Hinglish</option>
           </select>
+          <div class="tone-select" id="defaultToneSelectMenu">
+            <button
+              id="defaultToneMenuButton"
+              class="tone-menu-button"
+              type="button"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+            >
+              <span id="defaultToneMenuLabel">Friendly</span>
+              <span class="tone-menu-caret" aria-hidden="true"></span>
+            </button>
+            <div class="tone-menu" id="defaultToneMenu" role="listbox" aria-label="Default tone options" hidden>
+              <button class="default-tone-option tone-option" type="button" role="option" data-tone="friendly">Friendly</button>
+              <button class="default-tone-option tone-option" type="button" role="option" data-tone="professional">Professional</button>
+              <button class="default-tone-option tone-option" type="button" role="option" data-tone="funny">Funny</button>
+              <button class="default-tone-option tone-option" type="button" role="option" data-tone="short">Short</button>
+              <button class="default-tone-option tone-option" type="button" role="option" data-tone="supportive">Supportive</button>
+              <button class="default-tone-option tone-option" type="button" role="option" data-tone="hinglish">Hinglish</button>
+            </div>
+          </div>
 
           <label for="backendUrlInput">Backend URL</label>
           <input
             id="backendUrlInput"
             name="backendUrl"
             type="text"
-            placeholder="http://127.0.0.1:5000"
+            placeholder="https://assist-qw4s.onrender.com"
           >
 
           <button id="saveSettingsBtn" type="button">Save Settings</button>

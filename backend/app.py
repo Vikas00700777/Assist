@@ -1,11 +1,11 @@
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from flask import Flask, jsonify
 from flask_cors import CORS
 
-from config import Config
 from routes.reply_routes import reply_bp
 
 
@@ -49,4 +49,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=Config.FLASK_PORT, debug=True)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=False)
