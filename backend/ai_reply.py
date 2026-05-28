@@ -10,6 +10,7 @@ from config import Config
 
 
 MODEL_NAME = "gemini-2.5-flash"
+REPLY_COUNT = 10
 _client_index = 0
 _client_lock = threading.Lock()
 
@@ -82,19 +83,19 @@ def parse_replies(output_text):
     except json.JSONDecodeError:
         replies = output_text.splitlines()
 
-    return _dedupe_replies(replies)[:3]
+    return _dedupe_replies(replies)[:REPLY_COUNT]
 
 
 def _build_replies_prompt(text, tone, fallback=False):
     fallback_instruction = (
-        "The previous response did not include 3 usable unique replies. "
+        "The previous response did not include 10 usable unique replies. "
         "Try again with clearer, distinct, safe suggestions that follow every rule below.\n\n"
         if fallback
         else ""
     )
 
     return f"""
-{fallback_instruction}Generate exactly 3 short reply suggestions for X/Twitter.
+{fallback_instruction}Generate exactly 10 short reply suggestions for X/Twitter.
 
 Tone: {tone}
 Post or message:
@@ -102,9 +103,22 @@ Post or message:
 
 Rules:
 - Return only valid JSON in this exact shape:
-  {{"replies": ["reply one", "reply two", "reply three"]}}
+  {{
+    "replies": [
+      "reply one",
+      "reply two",
+      "reply three",
+      "reply four",
+      "reply five",
+      "reply six",
+      "reply seven",
+      "reply eight",
+      "reply nine",
+      "reply ten"
+    ]
+  }}
 - Each reply must be under 280 characters.
-- Make all 3 replies meaningfully different.
+- Make all 10 replies meaningfully different.
 - Make replies suitable for X/Twitter.
 - Do not include spam, engagement bait, scams, phishing, deceptive claims, or illegal activity.
 - Do not include abuse, hate, harassment, slurs, threats, intimidation, doxxing, or private personal data.
@@ -134,14 +148,11 @@ def _request_replies_from_gemini(text, tone, fallback=False):
 def generate_replies(text, tone):
     replies = _request_replies_from_gemini(text, tone)
 
-    if len(replies) != 3:
+    if len(replies) < REPLY_COUNT:
         fallback_replies = _request_replies_from_gemini(text, tone, fallback=True)
-        replies = _dedupe_replies([*replies, *fallback_replies])[:3]
+        replies = _dedupe_replies([*replies, *fallback_replies])
 
-    if len(replies) < 3:
-        raise RuntimeError("Gemini returned fewer than 3 usable unique replies after fallback.")
-
-    return replies
+    return replies[:REPLY_COUNT]
 
 
 def _parse_image_data_url(image_data_url):

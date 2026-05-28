@@ -29,6 +29,7 @@ function showStatus(message, type = "info") {
 function setButtonLoading(button, isLoading, loadingText, normalText) {
   button.disabled = isLoading;
   button.textContent = isLoading ? loadingText : normalText;
+  button.classList.toggle("loading", isLoading);
 }
 
 function setLoading(isLoading) {
@@ -242,11 +243,14 @@ async function insertReplyIntoActiveTab(replyText, insertButton) {
       return;
     }
 
+    insertButton.textContent = "Inserted";
     showStatus(response.message || "Reply inserted. Review it before posting.", "success");
   } catch (error) {
     showStatus("Could not connect to the X page. Refresh the tab and try again.", "error");
   } finally {
-    setButtonLoading(insertButton, false, "Inserting...", "Insert");
+    setTimeout(() => {
+      setButtonLoading(insertButton, false, "Inserting...", "Insert");
+    }, 500);
   }
 }
 
@@ -324,9 +328,10 @@ function renderReplies(replies) {
     return;
   }
 
-  replies.forEach((reply) => {
+  replies.forEach((reply, index) => {
     const card = document.createElement("article");
     card.className = "reply-card";
+    card.style.animationDelay = `${Math.min(index * 35, 240)}ms`;
 
     const replyTextElement = document.createElement("p");
     replyTextElement.textContent = reply;

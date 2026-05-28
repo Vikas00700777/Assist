@@ -4,84 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>X Assistant</title>
-  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <main class="popup-shell">
-    <header class="popup-header">
-      <h1>X Assistant</h1>
-      <p class="subtitle">Generate smart replies for X posts and comments.</p>
-      <p class="shortcut-hint">Ctrl + Enter to generate</p>
-    </header>
+  <div class="popup-container">
+    <main class="popup-main">
+      <header class="popup-header">
+        <h1>X Assistant</h1>
+        <p class="subtitle">Generate smart replies for X posts and comments.</p>
+        <p class="shortcut-hint">Ctrl + Enter to generate</p>
+      </header>
 
-    <section class="input-section" aria-labelledby="input-heading">
-      <h2 id="input-heading">Post or Reply Text</h2>
-      <textarea
-        id="postText"
-        name="postText"
-        rows="6"
-        placeholder="Paste the post or reply text here"
-      ></textarea>
-      <button id="useSelectedTextBtn" class="light-btn" type="button">Use Selected Text</button>
+      <section class="input-section" aria-labelledby="input-heading">
+        <h2 id="input-heading">Post or Reply Text</h2>
+        <textarea
+          id="postText"
+          name="postText"
+          rows="6"
+          placeholder="Paste the post or reply text here"
+        ></textarea>
+        <button id="useSelectedTextBtn" class="light-btn" type="button">Use Selected Text</button>
 
-      <label for="toneSelect">Tone</label>
-      <select id="toneSelect" name="tone">
-        <option value="friendly">Friendly</option>
-        <option value="professional">Professional</option>
-        <option value="funny">Funny</option>
-        <option value="short">Short</option>
-        <option value="supportive">Supportive</option>
-        <option value="hinglish">Hinglish</option>
-      </select>
-      <div class="quick-tone-row" aria-label="Quick tone choices">
-        <button class="quick-tone-btn" type="button" data-tone="friendly">Friendly</button>
-        <button class="quick-tone-btn" type="button" data-tone="funny">Funny</button>
-        <button class="quick-tone-btn" type="button" data-tone="short">Short</button>
-        <button class="quick-tone-btn" type="button" data-tone="hinglish">Hinglish</button>
-      </div>
-    </section>
-
-    <section class="actions-section" aria-label="Reply actions">
-      <button id="generateRepliesButton" type="button">Generate Replies</button>
-      <button id="regenerateBtn" class="secondary-btn" type="button">Regenerate Replies</button>
-      <div class="button-row">
-        <button id="uploadScreenshotButton" class="light-btn" type="button">Upload Screenshot</button>
-        <button id="captureSelectedAreaButton" class="light-btn" type="button">Capture Area</button>
-      </div>
-      <input id="screenshotInput" type="file" accept="image/*" hidden>
-      <div class="button-row">
-        <button id="clearTextBtn" class="light-btn" type="button">Clear Text</button>
-        <button id="clearRepliesBtn" class="light-btn" type="button">Clear Replies</button>
-      </div>
-    </section>
-
-    <p id="statusMessage" class="status-message" role="status" aria-live="polite"></p>
-
-    <section class="suggestions-section" aria-labelledby="suggestions-heading">
-      <h2 id="suggestions-heading">Reply Suggestions</h2>
-      <div id="replyList" class="reply-suggestions">
-        <p class="empty-message">No replies generated yet.</p>
-      </div>
-    </section>
-
-    <details id="historyDetails" class="history-section collapsible-section">
-      <summary id="history-heading">Reply History</summary>
-      <div class="collapsible-content">
-        <div class="section-title-row">
-          <span class="section-label">Saved Replies</span>
-          <button id="clearHistoryBtn" class="light-btn small-btn" type="button">Clear History</button>
-        </div>
-        <div id="historyList" class="history-list">
-          <p class="empty-message">No reply history yet.</p>
-        </div>
-      </div>
-    </details>
-
-    <details id="settingsDetails" class="settings-section collapsible-section">
-      <summary id="settings-heading">Settings</summary>
-      <div class="collapsible-content">
-        <label for="defaultToneSelect">Default Tone</label>
-        <select id="defaultToneSelect" name="defaultTone">
+        <label for="toneSelect">Tone</label>
+        <select id="toneSelect" name="tone">
           <option value="friendly">Friendly</option>
           <option value="professional">Professional</option>
           <option value="funny">Funny</option>
@@ -89,21 +34,78 @@
           <option value="supportive">Supportive</option>
           <option value="hinglish">Hinglish</option>
         </select>
+        <div class="quick-tone-row" aria-label="Quick tone choices">
+          <button class="quick-tone-btn" type="button" data-tone="friendly">Friendly</button>
+          <button class="quick-tone-btn" type="button" data-tone="funny">Funny</button>
+          <button class="quick-tone-btn" type="button" data-tone="short">Short</button>
+          <button class="quick-tone-btn" type="button" data-tone="hinglish">Hinglish</button>
+        </div>
+      </section>
 
-        <label for="backendUrlInput">Backend URL</label>
-        <input
-          id="backendUrlInput"
-          name="backendUrl"
-          type="text"
-          placeholder="http://127.0.0.1:5000"
-        >
+      <section class="actions-section" aria-label="Reply actions">
+        <button id="generateRepliesButton" type="button">Generate Replies</button>
+        <button id="regenerateBtn" class="secondary-btn" type="button">Regenerate Replies</button>
+        <div class="button-row">
+          <button id="uploadScreenshotButton" class="light-btn" type="button">Upload Screenshot</button>
+          <button id="captureSelectedAreaButton" class="light-btn" type="button">Capture Area</button>
+        </div>
+        <input id="screenshotInput" type="file" accept="image/*" hidden>
+        <div class="button-row">
+          <button id="clearTextBtn" class="light-btn" type="button">Clear Text</button>
+          <button id="clearRepliesBtn" class="light-btn" type="button">Clear Replies</button>
+        </div>
+      </section>
 
-        <button id="saveSettingsBtn" type="button">Save Settings</button>
-        <button id="testBackendBtn" class="light-btn" type="button">Check Backend</button>
-        <button id="resetExtensionBtn" class="danger-btn" type="button">Reset Extension</button>
-      </div>
-    </details>
-  </main>
+      <p id="statusMessage" class="status-message" role="status" aria-live="polite"></p>
+
+      <section class="suggestions-section" aria-labelledby="suggestions-heading">
+        <h2 id="suggestions-heading">Reply Suggestions</h2>
+        <div id="replyList">
+          <p class="empty-message">No replies generated yet.</p>
+        </div>
+      </section>
+
+      <details id="historyDetails" class="history-section collapsible-section">
+        <summary id="history-heading">Reply History</summary>
+        <div class="collapsible-content">
+          <div class="section-title-row">
+            <span class="section-label">Saved Replies</span>
+            <button id="clearHistoryBtn" class="light-btn small-btn" type="button">Clear History</button>
+          </div>
+          <div id="historyList" class="history-list">
+            <p class="empty-message">No reply history yet.</p>
+          </div>
+        </div>
+      </details>
+
+      <details id="settingsDetails" class="settings-section collapsible-section">
+        <summary id="settings-heading">Settings</summary>
+        <div class="collapsible-content">
+          <label for="defaultToneSelect">Default Tone</label>
+          <select id="defaultToneSelect" name="defaultTone">
+            <option value="friendly">Friendly</option>
+            <option value="professional">Professional</option>
+            <option value="funny">Funny</option>
+            <option value="short">Short</option>
+            <option value="supportive">Supportive</option>
+            <option value="hinglish">Hinglish</option>
+          </select>
+
+          <label for="backendUrlInput">Backend URL</label>
+          <input
+            id="backendUrlInput"
+            name="backendUrl"
+            type="text"
+            placeholder="http://127.0.0.1:5000"
+          >
+
+          <button id="saveSettingsBtn" type="button">Save Settings</button>
+          <button id="testBackendBtn" class="light-btn" type="button">Check Backend</button>
+          <button id="resetExtensionBtn" class="danger-btn" type="button">Reset Extension</button>
+        </div>
+      </details>
+    </main>
+  </div>
 
   <script src="../utils/storage.js"></script>
   <script src="../utils/api.js"></script>
