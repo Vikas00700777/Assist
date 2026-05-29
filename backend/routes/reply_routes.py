@@ -56,8 +56,8 @@ def generate_replies():
     context = context.strip()
     image_data = image_data.strip()
 
-    if not text and not image_data:
-        return jsonify({"success": False, "error": "Text or image data is required."}), 400
+    if not text and not context and not image_data:
+        return jsonify({"success": False, "error": "Text, context, or image data is required."}), 400
 
     if len(text) > MAX_TEXT_LENGTH:
         return jsonify({"success": False, "error": "Text is too long."}), 400

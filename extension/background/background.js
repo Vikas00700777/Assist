@@ -136,7 +136,7 @@ async function extractTextFromCroppedImage(imageData) {
       throw new Error("Selected area OCR timed out. Please try again.");
     }
 
-    throw new Error("Backend OCR is not reachable. The captured image was attached instead.");
+    throw new Error("Visual context captured. OCR is not reachable.");
   }
 
   let data = {};
@@ -150,7 +150,7 @@ async function extractTextFromCroppedImage(imageData) {
   if (!response.ok || !data.success) {
     const message = data.error || data.message || "Failed to extract text from selected area.";
     throw new Error(message === "Failed to fetch"
-      ? "Backend OCR is not reachable. The captured image was attached instead."
+      ? "Visual context captured. OCR is not reachable."
       : message);
   }
 
@@ -185,32 +185,32 @@ async function handleCaptureSelectedArea(message, sender) {
     try {
       text = await extractTextFromCroppedImage(croppedImage);
     } catch (error) {
-      const messageText = error.message || "OCR failed. The captured image was attached instead.";
+      const messageText = "Visual context ready. Click Generate Replies.";
 
-      await saveCaptureStatus("error", messageText, "", croppedImage);
+      await saveCaptureStatus("success", messageText, "", croppedImage);
       notifyPopup({
-        success: false,
+        success: true,
         message: messageText,
         imageData: croppedImage
       });
 
       return {
-        success: false,
+        success: true,
         message: messageText
       };
     }
 
-    await saveCaptureStatus("success", "Text extracted from selected area.", text, croppedImage);
+    await saveCaptureStatus("success", "Capture analyzed and added to context.", text, croppedImage);
     notifyPopup({
       success: true,
-      message: "Text extracted from selected area.",
+      message: "Capture analyzed and added to context.",
       text,
       imageData: croppedImage
     });
 
     return {
       success: true,
-      message: "Text extracted from selected area."
+      message: "Capture analyzed and added to context."
     };
   } catch (error) {
     const messageText = error.message || "Could not capture selected area.";

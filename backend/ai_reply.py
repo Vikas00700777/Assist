@@ -16,29 +16,40 @@ _client_lock = threading.Lock()
 TONE_INSTRUCTIONS = {
     "friendly": (
         "Friendly: warm, casual, approachable, and conversational. Use simple words, "
-        "light enthusiasm, and a human social tone."
+        "light enthusiasm, and a human social tone. Sound like a real person."
     ),
     "professional": (
-        "Professional: polished, clear, respectful, and composed. Avoid slang, jokes, "
-        "excessive emotion, and overly casual phrasing."
+        "Professional: clear, respectful, and composed, but still easy to understand. "
+        "Avoid corporate wording, complex phrases, slang, jokes, and excessive emotion."
     ),
     "funny": (
-        "Funny: witty, playful, and lightly humorous. Use clever phrasing or a small joke, "
+        "Funny: playful and lightly humorous. Use simple jokes or casual wit, "
         "but do not be mean, cringe, offensive, or overdo it."
     ),
     "short": (
-        "Short: very concise and punchy. Keep each reply to one short sentence, ideally "
-        "under 12 words. No filler or long explanations."
+        "Short: very concise, simple, and natural. Keep each reply to one short sentence, "
+        "ideally under 12 words. No filler, high-level words, or long explanations."
     ),
     "supportive": (
-        "Supportive: encouraging, validating, kind, and emotionally steady. Sound like "
-        "someone backing the person up without being dramatic."
+        "Supportive: encouraging, kind, and emotionally steady. Use simple words. Sound like "
+        "someone naturally backing the person up without being dramatic."
     ),
     "hinglish": (
         "Hinglish: use natural Roman Hindi-English mix, like casual Indian social media. "
-        "Do not write in Devanagari. Keep it easy, conversational, and not forced."
+        "Do not write in Devanagari. Keep it easy, conversational, simple, and not forced."
     ),
 }
+
+GLOBAL_REPLY_STYLE_RULES = """
+Style for every reply:
+- Sound conversational, human, and easy to understand.
+- Use simple everyday words. Avoid technical, fancy, corporate, or high-level vocabulary.
+- Keep the replies natural for X/Twitter, like something a real person would type.
+- Some replies can include one light emoji if it fits, but not all replies should use emoji.
+- Never force emoji. Do not use more than one emoji in a reply.
+- Mix the wording: some replies with emoji, some without, some very short, some slightly warmer.
+- Do not sound robotic, motivational-poster-like, or overly polished.
+"""
 
 
 def get_gemini_client():
@@ -101,6 +112,16 @@ def get_tone_instruction(tone):
     return TONE_INSTRUCTIONS.get(normalized_tone, TONE_INSTRUCTIONS["friendly"])
 
 
+def normalize_reply_inputs(text, context):
+    normalized_text = str(text or "").strip()
+    normalized_context = str(context or "").strip()
+
+    if normalized_text and normalized_context and normalized_text == normalized_context:
+        return "", normalized_context
+
+    return normalized_text, normalized_context
+
+
 def parse_replies(output_text):
     output_text = str(output_text or "").strip()
     output_text = re.sub(r"^```(?:json)?\s*|\s*```$", "", output_text)
@@ -126,15 +147,21 @@ def _build_replies_prompt(text, tone, context="", fallback=False):
         else ""
     )
 
+    text, context = normalize_reply_inputs(text, context)
     tone_instruction = get_tone_instruction(tone)
 
     return f"""
-{fallback_instruction}You are helping the user reply to someone on X.
-The user may provide original post context and a reply/comment.
-Generate replies as the original post author.
-Use the context to understand the situation.
-Directly answer the reply/comment.
-Do not ignore the reply/comment.
+{fallback_instruction}You are helping the user write replies on X.
+Generate replies the user can post as a viewer/commenter, not as the original author.
+Use the original post context to understand what the post means.
+If a reply/comment to answer is provided, answer that comment using the original context.
+If no reply/comment is provided, generate natural replies to the original post itself.
+Infer X/social-media meaning from short phrases, numbers, profile stats, milestones, sarcasm, and implied context.
+Examples of implied meaning:
+- "2 more" near 398 followers means the person needs 2 more followers to reach 400.
+- "1 more" near 999 followers means one away from 1K.
+- Profile screenshots, follower counts, dates, and captions are part of the post meaning.
+Do not make generic replies that ignore the specific post.
 Do not be rude.
 Keep replies natural and human-like.
 
@@ -147,7 +174,9 @@ Reply or Comment to Answer:
 Mandatory Tone Style:
 {tone_instruction}
 
-Generate exactly 10 replies that answer the reply/comment using the original context.
+{GLOBAL_REPLY_STYLE_RULES}
+
+Generate exactly 10 replies.
 
 Rules:
 - Return only valid JSON in this exact shape:
@@ -187,23 +216,28 @@ def _build_multimodal_replies_prompt(text, tone, context="", fallback=False):
         else ""
     )
 
+    text, context = normalize_reply_inputs(text, context)
     tone_instruction = get_tone_instruction(tone)
 
     return f"""
-{fallback_instruction}You are helping the user reply on X.
+{fallback_instruction}You are helping the user write replies on X.
 Analyze the full post using:
 1. Original Post / Context text
 2. Reply or Comment to Answer
 3. Uploaded image or meme screenshot
 
 Important:
+- Generate replies the user can post as a viewer/commenter, not as the original author.
 - Understand visible text in the image.
 - Understand meme meaning, joke, sarcasm, screenshot context, and image content.
+- Infer the actual intent of short X captions from the image. For example, "2 more" with 398 followers means the person is 2 followers away from 400.
+- Treat profile screenshots, follower counts, dates, usernames, verification badges, and captions as meaningful context.
+- If the post combines a small text caption with an image, connect them before writing replies.
 - If the image contains most of the meaning, use it.
 - If context text and image disagree, prioritize visible image/post content.
-- Generate replies as the original post author.
 - Directly answer the reply/comment if provided.
 - If no reply/comment is provided, generate general replies to the post.
+- Avoid vague replies like "you know it", "working on those", or "spot on" unless they clearly fit the post.
 - Do not be rude.
 - Keep replies natural, short, and suitable for X.
 - Generate exactly 10 replies.
@@ -223,6 +257,8 @@ Reply or Comment to Answer:
 
 Mandatory Tone Style:
 {tone_instruction}
+
+{GLOBAL_REPLY_STYLE_RULES}
 
 Return only valid JSON in this exact shape:
 {{
@@ -308,9 +344,12 @@ def extract_text_from_image(image_data_url):
             contents=[
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
                 (
-                    "Extract only readable text from this screenshot or image. "
-                    "Return only the extracted text. If no readable text is found, "
-                    "return exactly: No readable text found"
+                    "Extract readable text from this X screenshot or image. "
+                    "Preserve short captions, profile stats, follower counts, dates, and visible labels. "
+                    "If there is an obvious implied meaning, add one short line starting with Meaning:. "
+                    "Example: if the image shows 398 followers and the caption says '2 more', "
+                    "write Meaning: 2 more followers needed to reach 400. "
+                    "If no readable text is found, return exactly: No readable text found"
                 ),
             ],
         )

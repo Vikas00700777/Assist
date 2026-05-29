@@ -341,15 +341,22 @@ button:focus-visible {
 }
 
 .status-message {
+  position: fixed;
+  z-index: 80;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
   margin: 0;
   border: 1px solid #2a2a2a;
   border-radius: 12px;
   padding: 10px 12px;
   color: #d4d4d8;
   background: rgba(10, 10, 10, 0.96);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.44);
   font-size: 12px;
   line-height: 1.35;
   text-align: center;
+  pointer-events: none;
 }
 
 .status-message:empty {
@@ -504,7 +511,7 @@ button:focus-visible {
   gap: 10px;
 }
 
-.attached-image-row {
+.visual-context-row {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
@@ -514,7 +521,7 @@ button:focus-visible {
   font-size: 12px;
 }
 
-.attached-image-row span {
+.visual-context-row span {
   min-height: 40px;
   border: 1px solid #262626;
   border-radius: 11px;
@@ -522,7 +529,7 @@ button:focus-visible {
   background: #0a0a0a;
 }
 
-.attached-image-row .small-btn {
+.visual-context-row .small-btn {
   flex: 0 0 auto;
   min-height: 40px;
 }
@@ -689,11 +696,11 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .attached-image-row {
+  .visual-context-row {
     grid-template-columns: 1fr;
   }
 
-  .attached-image-row .small-btn {
+  .visual-context-row .small-btn {
     width: 100%;
   }
 
@@ -782,15 +789,18 @@ button:focus-visible {
     min-height: 42px;
   }
 
-  .attached-image-row {
+  .visual-context-row {
     grid-template-columns: 1fr;
   }
 
-  .attached-image-row .small-btn {
+  .visual-context-row .small-btn {
     width: 100%;
   }
 
   .status-message {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
     padding: 10px 12px;
   }
 

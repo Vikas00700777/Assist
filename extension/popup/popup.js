@@ -14,6 +14,7 @@ const screenshotInput = document.getElementById("screenshotInput");
 const captureSelectedAreaButton = document.getElementById("captureSelectedAreaButton");
 const captureAreaWrap = document.getElementById("captureAreaWrap");
 const captureUnsupportedNote = document.getElementById("captureUnsupportedNote");
+const visualContextRow = document.getElementById("visualContextRow");
 const attachedImageStatus = document.getElementById("attachedImageStatus");
 const clearAttachedImageBtn = document.getElementById("clearAttachedImageBtn");
 const clearTextBtn = document.getElementById("clearTextBtn");
@@ -32,6 +33,7 @@ const historyList = document.getElementById("historyList");
 const CAPTURE_AREA_UNSUPPORTED_KEY = "captureAreaUnsupported";
 const CAPTURE_AREA_MOBILE_MESSAGE = "Capture Area is not supported on this mobile browser. Use Upload Screenshot.";
 const LATEST_SELECTED_TEXT_KEY = "latestSelectedText";
+const LAST_CAPTURED_CONTEXT_TEXT_KEY = "lastCapturedContextText";
 let attachedImageData = "";
 let isCaptureAreaUnsupported = false;
 let statusHideTimer = null;
@@ -131,7 +133,7 @@ function setLoading(isLoading) {
 }
 
 function setScreenshotLoading(isLoading) {
-  setButtonLoading(uploadScreenshotButton, isLoading, "Extracting...", "Upload Screenshot");
+  setButtonLoading(uploadScreenshotButton, isLoading, "Analyzing...", "Upload Image / Screenshot");
   generateRepliesButton.disabled = isLoading;
   regenerateBtn.disabled = isLoading;
   useSelectedAsContextBtn.disabled = isLoading;
@@ -178,16 +180,17 @@ function clearReplies() {
 }
 
 function updateAttachedImageStatus() {
+  visualContextRow.hidden = !attachedImageData;
   attachedImageStatus.textContent = attachedImageData
-    ? "Captured image attached for AI analysis"
-    : "No image attached";
+    ? "Visual context ready"
+    : "";
   clearAttachedImageBtn.disabled = !attachedImageData;
 }
 
 function clearAttachedImage() {
   attachedImageData = "";
   updateAttachedImageStatus();
-  showStatus("Attached image cleared.", "success");
+  showStatus("Visual context cleared.", "success");
 }
 
 function attachCapturedImage(imageData) {
@@ -198,6 +201,73 @@ function attachCapturedImage(imageData) {
   attachedImageData = imageData;
   updateAttachedImageStatus();
   return true;
+}
+
+function mergeContextText(existingText, addedText) {
+  const current = (existingText || "").trim();
+  const next = (addedText || "").trim();
+
+  if (!next || next === "No readable text found") {
+    return current;
+  }
+
+  if (!current) {
+    return next;
+  }
+
+  if (current.includes(next)) {
+    return current;
+  }
+
+  return `${current}\n\n${next}`;
+}
+
+function removeContextTextBlock(existingText, textToRemove) {
+  const current = (existingText || "").trim();
+  const previous = (textToRemove || "").trim();
+
+  if (!current || !previous) {
+    return current;
+  }
+
+  if (current === previous) {
+    return "";
+  }
+
+  return current
+    .replace(`\n\n${previous}`, "")
+    .replace(`${previous}\n\n`, "")
+    .replace(previous, "")
+    .trim();
+}
+
+async function removeLastCapturedContextText() {
+  const result = await chrome.storage.local.get(LAST_CAPTURED_CONTEXT_TEXT_KEY);
+  const lastCapturedText = result[LAST_CAPTURED_CONTEXT_TEXT_KEY];
+
+  if (!lastCapturedText) {
+    return;
+  }
+
+  const nextContext = removeContextTextBlock(contextText.value, lastCapturedText);
+
+  if (nextContext !== contextText.value.trim()) {
+    contextText.value = nextContext;
+    await saveDraftContextText(contextText.value);
+  }
+
+  await chrome.storage.local.remove(LAST_CAPTURED_CONTEXT_TEXT_KEY);
+}
+
+async function rememberCapturedContextText(capturedText) {
+  const text = (capturedText || "").trim();
+
+  if (!text || text === "No readable text found") {
+    await chrome.storage.local.remove(LAST_CAPTURED_CONTEXT_TEXT_KEY);
+    return;
+  }
+
+  await chrome.storage.local.set({ [LAST_CAPTURED_CONTEXT_TEXT_KEY]: text });
 }
 
 function showEmptyReplies() {
@@ -220,14 +290,18 @@ function showEmptyHistory() {
 function clearText() {
   contextText.value = "";
   postText.value = "";
-  postText.focus();
-  showStatus("Text cleared.", "success");
+  attachedImageData = "";
+  updateAttachedImageStatus();
+  showStatus("Text and visual context cleared.", "success");
 
   clearDraftText().catch((error) => {
     console.error("Could not clear draft text.", error);
   });
   clearDraftContextText().catch((error) => {
     console.error("Could not clear draft context.", error);
+  });
+  chrome.storage.local.remove(LAST_CAPTURED_CONTEXT_TEXT_KEY).catch((error) => {
+    console.error("Could not clear last captured text.", error);
   });
 }
 
@@ -520,6 +594,7 @@ async function startSelectedAreaCapture() {
       }
     });
     await chrome.storage.local.remove("pendingExtractedText");
+    await removeLastCapturedContextText();
 
     setCaptureLoading(true);
     await prepareAreaCaptureInTab(activeTab.id);
@@ -586,8 +661,8 @@ async function handleGenerateReplies() {
   const tone = toneSelect.value;
   const imageData = attachedImageData;
 
-  if (!text && !imageData) {
-    showStatus("Paste text or attach an image before generating replies.", "error");
+  if (!context && !replyText && !imageData) {
+    showStatus("Add text, upload an image, or capture an area before generating replies.", "error");
     contextText.focus();
     return;
   }
@@ -597,7 +672,7 @@ async function handleGenerateReplies() {
   showStatus("", "info");
 
   try {
-    const result = await generateRepliesFromAPI(text, tone, replyText ? context : "", imageData);
+    const result = await generateRepliesFromAPI(text, tone, context, imageData);
 
     if (!result.success) {
       showReplyListMessage(result.message || "We could not generate replies. Please try again.", "error");
@@ -609,7 +684,7 @@ async function handleGenerateReplies() {
     renderReplies(replies);
 
     await saveRecentReplies(replies);
-    await saveReplyHistoryItem(text, tone, replies, context, replyText);
+    await saveReplyHistoryItem(context || text, tone, replies, context, replyText);
     await loadReplyHistory();
 
     showStatus("Replies generated successfully.", "success");
@@ -677,9 +752,8 @@ function saveCurrentDraftContextText() {
 async function saveSettings() {
   const backendUrl = backendUrlInput.value.trim().replace(/\/$/, "");
 
-  if (backendUrl !== "https://assist-qw4s.onrender.com") {
-    showStatus("Use the production Render backend URL.", "error");
-    backendUrlInput.value = "https://assist-qw4s.onrender.com";
+  if (!/^https?:\/\/.+/i.test(backendUrl)) {
+    showStatus("Enter a valid backend URL.", "error");
     backendUrlInput.focus();
     return;
   }
@@ -768,15 +842,22 @@ async function loadPendingCaptureResult() {
 
     if (pendingText) {
       attachCapturedImage(pendingImage);
-      postText.value = pendingText;
-      showStatus(pendingStatus?.message || "Text extracted from selected area.", "success");
-      await saveDraftText(postText.value);
+      contextText.value = mergeContextText(contextText.value, pendingText);
+      showStatus(pendingStatus?.message || "Capture analyzed and added to context.", "success");
+      await rememberCapturedContextText(pendingText);
+      await saveDraftContextText(contextText.value);
       await chrome.storage.local.remove(["pendingExtractedText", "pendingCapturedImage", "pendingCaptureStatus"]);
       return;
     }
 
     if (pendingImage) {
       attachCapturedImage(pendingImage);
+    }
+
+    if (pendingImage && pendingStatus?.status === "success") {
+      showStatus(pendingStatus.message || "Visual context ready. Click Generate Replies.", "success");
+      await chrome.storage.local.remove(["pendingCapturedImage", "pendingCaptureStatus"]);
+      return;
     }
 
     if (pendingStatus?.status === "error") {
@@ -786,7 +867,7 @@ async function loadPendingCaptureResult() {
         await markCaptureAreaUnsupported();
       }
 
-      showStatus(pendingImage ? "Captured image attached. Click Generate Replies." : errorMessage, pendingImage ? "success" : "error");
+      showStatus(pendingImage ? "Visual context ready. Click Generate Replies." : errorMessage, pendingImage ? "success" : "error");
       await chrome.storage.local.remove(["pendingCapturedImage", "pendingCaptureStatus"]);
       return;
     }
@@ -817,24 +898,24 @@ async function handleScreenshotSelected(event) {
   }
 
   setScreenshotLoading(true);
-  showStatus("Extracting text from screenshot...", "info");
+  showStatus("Analyzing image context...", "info");
 
   try {
     const imageData = await convertImageToDataURL(file);
     attachedImageData = imageData;
     updateAttachedImageStatus();
-    showStatus("Image attached for analysis. Extracting text...", "info");
+    showStatus("Image context ready. Reading visible text...", "info");
 
     const result = await extractTextFromImageAPI(imageData);
 
     if (!result.success) {
-      showStatus(result.message || "Image attached, but OCR could not extract text.", "error");
+      showStatus("Image context ready. Click Generate Replies.", "success");
       return;
     }
 
-    postText.value = result.text || "";
-    await saveDraftText(postText.value);
-    showStatus("Text extracted. Image attached for AI analysis.", "success");
+    contextText.value = mergeContextText(contextText.value, result.text || "");
+    await saveDraftContextText(contextText.value);
+    showStatus("Image and visible text added to context.", "success");
   } catch (error) {
     showStatus(error.message || "Could not process screenshot.", "error");
   } finally {
@@ -965,9 +1046,12 @@ chrome.runtime.onMessage.addListener((message) => {
   attachCapturedImage(message.imageData);
 
   if (message.success && message.text) {
-    postText.value = message.text;
-    showStatus(message.message || "Text extracted from selected area.", "success");
-    saveCurrentDraftText();
+    contextText.value = mergeContextText(contextText.value, message.text);
+    showStatus(message.message || "Capture analyzed and added to context.", "success");
+    rememberCapturedContextText(message.text).catch((error) => {
+      console.error("Could not save last captured text.", error);
+    });
+    saveCurrentDraftContextText();
     chrome.storage.local.remove(["pendingExtractedText", "pendingCapturedImage", "pendingCaptureStatus"]);
     return;
   }
@@ -980,7 +1064,7 @@ chrome.runtime.onMessage.addListener((message) => {
     });
   }
 
-  showStatus(message.imageData ? "Captured image attached. Click Generate Replies." : errorMessage, message.imageData ? "success" : "error");
+  showStatus(message.imageData ? "Visual context ready. Click Generate Replies." : errorMessage, message.imageData ? "success" : "error");
   chrome.storage.local.remove(["pendingCapturedImage", "pendingCaptureStatus"]);
 });
 
