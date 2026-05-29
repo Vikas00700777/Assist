@@ -1,6 +1,6 @@
 const BACKEND_URL_KEY = "backendUrl";
 const DEFAULT_BACKEND_URL = "https://assist-qw4s.onrender.com";
-const MOBILE_CAPTURE_UNSUPPORTED_MESSAGE = "Capture Area is not supported by this mobile browser. Please use Upload Screenshot instead.";
+const CAPTURE_FALLBACK_MESSAGE = "Selected area text added to context.";
 
 async function getBackendUrl() {
   const result = await chrome.storage.local.get(BACKEND_URL_KEY);
@@ -172,7 +172,23 @@ async function handleCaptureSelectedArea(message, sender) {
         format: "png"
       });
     } catch (error) {
-      throw new Error(MOBILE_CAPTURE_UNSUPPORTED_MESSAGE);
+      const fallbackText = (message.fallbackText || "").trim();
+
+      if (!fallbackText) {
+        throw new Error("Could not capture this area. Try selecting text or use Upload Screenshot.");
+      }
+
+      await saveCaptureStatus("success", CAPTURE_FALLBACK_MESSAGE, fallbackText);
+      notifyPopup({
+        success: true,
+        message: CAPTURE_FALLBACK_MESSAGE,
+        text: fallbackText
+      });
+
+      return {
+        success: true,
+        message: CAPTURE_FALLBACK_MESSAGE
+      };
     }
 
     const croppedImage = await cropImageDataUrl(

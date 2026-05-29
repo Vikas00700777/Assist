@@ -33,6 +33,7 @@
   "host_permissions": [
     "https://x.com/*",
     "https://twitter.com/*",
+    "https://mobile.twitter.com/*",
     "https://assist-qw4s.onrender.com/*",
     "http://localhost:5000/*",
     "http://127.0.0.1:5000/*"
@@ -46,7 +47,8 @@
     {
       "matches": [
         "https://x.com/*",
-        "https://twitter.com/*"
+        "https://twitter.com/*",
+        "https://mobile.twitter.com/*"
       ],
       "js": [
         "content/content.js"

@@ -108,6 +108,104 @@
     selection.style.height = `${height}px`;
   }
 
+  function getElementText(element) {
+    if (!element || element === document.body || element === document.documentElement) {
+      return "";
+    }
+
+    const tagName = element.tagName?.toLowerCase();
+
+    if (["script", "style", "noscript", "svg", "canvas", "img", "video"].includes(tagName)) {
+      return "";
+    }
+
+    const ariaLabel = element.getAttribute?.("aria-label") || "";
+    const text = element.innerText || element.textContent || ariaLabel;
+
+    return (text || "").replace(/\s+/g, " ").trim();
+  }
+
+  function isGoodTextCandidate(element, rect) {
+    const bounds = element.getBoundingClientRect();
+    const viewportArea = Math.max(1, window.innerWidth * window.innerHeight);
+    const elementArea = bounds.width * bounds.height;
+    const selectionArea = Math.max(1, rect.width * rect.height);
+
+    if (elementArea > viewportArea * 0.8 && elementArea > selectionArea * 4) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function elementIntersectsRect(element, rect) {
+    const bounds = element.getBoundingClientRect();
+
+    return bounds.width > 0 &&
+      bounds.height > 0 &&
+      bounds.right >= rect.left &&
+      bounds.left <= rect.left + rect.width &&
+      bounds.bottom >= rect.top &&
+      bounds.top <= rect.top + rect.height;
+  }
+
+  function extractTextFromRect(rect) {
+    const previousVisibility = [
+      [overlay, overlay.style.visibility],
+      [selection, selection.style.visibility],
+      [hint, hint.style.visibility],
+      [cancelButton, cancelButton.style.visibility]
+    ];
+    const foundElements = new Set();
+    const stepX = Math.max(20, Math.floor(rect.width / 4));
+    const stepY = Math.max(20, Math.floor(rect.height / 4));
+
+    previousVisibility.forEach(([element]) => {
+      element.style.visibility = "hidden";
+    });
+
+    try {
+      for (let y = rect.top; y <= rect.top + rect.height; y += stepY) {
+        for (let x = rect.left; x <= rect.left + rect.width; x += stepX) {
+          const pointX = Math.min(rect.left + rect.width - 1, Math.max(rect.left, x));
+          const pointY = Math.min(rect.top + rect.height - 1, Math.max(rect.top, y));
+
+          document.elementsFromPoint(pointX, pointY).forEach((element) => {
+            if (elementIntersectsRect(element, rect) && isGoodTextCandidate(element, rect)) {
+              foundElements.add(element);
+            }
+          });
+        }
+      }
+    } finally {
+      previousVisibility.forEach(([element, visibility]) => {
+        element.style.visibility = visibility;
+      });
+    }
+
+    const lines = [];
+
+    Array.from(foundElements)
+      .sort((first, second) => {
+        const firstBounds = first.getBoundingClientRect();
+        const secondBounds = second.getBoundingClientRect();
+        return (firstBounds.width * firstBounds.height) - (secondBounds.width * secondBounds.height);
+      })
+      .forEach((element) => {
+        const text = getElementText(element);
+
+        if (text && text.length <= 1200 && !lines.some((line) => line === text || line.includes(text))) {
+          lines.push(text);
+        }
+      });
+
+    return lines
+      .filter((line) => !lines.some((otherLine) => otherLine !== line && line.includes(otherLine)))
+      .join("\n")
+      .slice(0, 4000)
+      .trim();
+  }
+
   function handlePointerDown(event) {
     if (event.target === cancelButton) {
       return;
@@ -151,6 +249,7 @@
     const width = Math.abs(event.clientX - state.startX);
     const height = Math.abs(event.clientY - state.startY);
     const devicePixelRatio = window.devicePixelRatio || 1;
+    const rect = { left, top, width, height };
 
     removeCaptureOverlay();
 
@@ -159,10 +258,13 @@
       return;
     }
 
+    const fallbackText = extractTextFromRect(rect);
+
     chrome.runtime.sendMessage({
       type: "CAPTURE_SELECTED_AREA",
-      rect: { left, top, width, height },
-      devicePixelRatio
+      rect,
+      devicePixelRatio,
+      fallbackText
     });
   }
 

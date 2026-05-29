@@ -12,8 +12,6 @@ const useSelectedTextBtn = document.getElementById("useSelectedTextBtn");
 const uploadScreenshotButton = document.getElementById("uploadScreenshotButton");
 const screenshotInput = document.getElementById("screenshotInput");
 const captureSelectedAreaButton = document.getElementById("captureSelectedAreaButton");
-const captureAreaWrap = document.getElementById("captureAreaWrap");
-const captureUnsupportedNote = document.getElementById("captureUnsupportedNote");
 const visualContextRow = document.getElementById("visualContextRow");
 const attachedImageStatus = document.getElementById("attachedImageStatus");
 const clearAttachedImageBtn = document.getElementById("clearAttachedImageBtn");
@@ -30,12 +28,9 @@ const settingsDetails = document.getElementById("settingsDetails");
 const statusMessage = document.getElementById("statusMessage");
 const replyList = document.getElementById("replyList");
 const historyList = document.getElementById("historyList");
-const CAPTURE_AREA_UNSUPPORTED_KEY = "captureAreaUnsupported";
-const CAPTURE_AREA_MOBILE_MESSAGE = "Capture Area is not supported on this mobile browser. Use Upload Screenshot.";
 const LATEST_SELECTED_TEXT_KEY = "latestSelectedText";
 const LAST_CAPTURED_CONTEXT_TEXT_KEY = "lastCapturedContextText";
 let attachedImageData = "";
-let isCaptureAreaUnsupported = false;
 let statusHideTimer = null;
 
 function showStatus(message, type = "info") {
@@ -62,58 +57,12 @@ function showBackendStatus(message, type = "info") {
   backendStatusMessage.dataset.type = type;
 }
 
-function isMobileBrowser() {
-  const userAgent = navigator.userAgent || "";
-  const hasCoarsePointer = window.matchMedia?.("(pointer: coarse)").matches;
-
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(userAgent) ||
-    Boolean(hasCoarsePointer && navigator.maxTouchPoints > 1);
-}
-
 function getCaptureErrorMessage(message) {
   if ((message || "").toLowerCase() === "failed to fetch") {
     return "Captured image attached. Click Generate Replies.";
   }
 
-  if ((message || "").includes("not supported by this mobile browser")) {
-    return CAPTURE_AREA_MOBILE_MESSAGE;
-  }
-
   return message || "Selected area capture failed.";
-}
-
-function isCaptureUnsupportedError(message) {
-  return /not supported by this mobile browser|capture area is not supported|capturevisibletab/i.test(message || "");
-}
-
-function updateCaptureAreaAvailability() {
-  const shouldHideCapture = isMobileBrowser() && isCaptureAreaUnsupported;
-
-  captureAreaWrap.classList.toggle("is-unsupported", shouldHideCapture);
-  captureUnsupportedNote.hidden = !shouldHideCapture;
-  captureSelectedAreaButton.disabled = shouldHideCapture;
-  captureSelectedAreaButton.setAttribute("aria-hidden", shouldHideCapture ? "true" : "false");
-}
-
-async function markCaptureAreaUnsupported() {
-  if (!isMobileBrowser()) {
-    return;
-  }
-
-  isCaptureAreaUnsupported = true;
-  await chrome.storage.local.set({ [CAPTURE_AREA_UNSUPPORTED_KEY]: true });
-  updateCaptureAreaAvailability();
-}
-
-async function loadCaptureAreaSupportState() {
-  try {
-    const result = await chrome.storage.local.get(CAPTURE_AREA_UNSUPPORTED_KEY);
-    isCaptureAreaUnsupported = Boolean(result[CAPTURE_AREA_UNSUPPORTED_KEY]);
-  } catch (error) {
-    isCaptureAreaUnsupported = false;
-  }
-
-  updateCaptureAreaAvailability();
 }
 
 function setButtonLoading(button, isLoading, loadingText, normalText) {
@@ -128,7 +77,7 @@ function setLoading(isLoading) {
   useSelectedAsContextBtn.disabled = isLoading;
   useSelectedTextBtn.disabled = isLoading;
   uploadScreenshotButton.disabled = isLoading;
-  captureSelectedAreaButton.disabled = isLoading || (isMobileBrowser() && isCaptureAreaUnsupported);
+  captureSelectedAreaButton.disabled = isLoading;
   clearAttachedImageBtn.disabled = isLoading || !attachedImageData;
 }
 
@@ -138,13 +87,12 @@ function setScreenshotLoading(isLoading) {
   regenerateBtn.disabled = isLoading;
   useSelectedAsContextBtn.disabled = isLoading;
   useSelectedTextBtn.disabled = isLoading;
-  captureSelectedAreaButton.disabled = isLoading || (isMobileBrowser() && isCaptureAreaUnsupported);
+  captureSelectedAreaButton.disabled = isLoading;
   clearAttachedImageBtn.disabled = isLoading || !attachedImageData;
 }
 
 function setCaptureLoading(isLoading) {
   setButtonLoading(captureSelectedAreaButton, isLoading, "Starting...", "Capture Area");
-  updateCaptureAreaAvailability();
 }
 
 function getToneLabel(selectElement, tone) {
@@ -442,7 +390,11 @@ async function copyReplyToClipboard(replyText, copyButton) {
 }
 
 function isSupportedXUrl(url) {
-  return url && (url.startsWith("https://x.com/") || url.startsWith("https://twitter.com/"));
+  return url && (
+    url.startsWith("https://x.com/") ||
+    url.startsWith("https://twitter.com/") ||
+    url.startsWith("https://mobile.twitter.com/")
+  );
 }
 
 async function getActiveTab() {
@@ -494,7 +446,7 @@ async function insertReplyIntoActiveTab(replyText, insertButton) {
     const activeTab = await getActiveTab();
 
     if (!activeTab || !isSupportedXUrl(activeTab.url)) {
-      showStatus("Open x.com or twitter.com, then click inside a reply box.", "error");
+      showStatus("Open X or Twitter, then click inside a reply box.", "error");
       return;
     }
 
@@ -574,16 +526,11 @@ async function useSelectedTextFromActiveTab(targetElement, button, successMessag
 }
 
 async function startSelectedAreaCapture() {
-  if (isMobileBrowser() && isCaptureAreaUnsupported) {
-    showStatus(CAPTURE_AREA_MOBILE_MESSAGE, "info");
-    return;
-  }
-
   try {
     const activeTab = await getActiveTab();
 
     if (!activeTab || !isSupportedXUrl(activeTab.url)) {
-      showStatus("Open x.com or twitter.com before selecting an area.", "error");
+      showStatus("Open X or Twitter before selecting an area.", "error");
       return;
     }
 
@@ -606,10 +553,6 @@ async function startSelectedAreaCapture() {
   } catch (error) {
     setCaptureLoading(false);
     const errorMessage = getCaptureErrorMessage(error.message || "Could not start capture. Refresh the X tab and try again.");
-
-    if (isCaptureUnsupportedError(errorMessage)) {
-      await markCaptureAreaUnsupported();
-    }
 
     showStatus(errorMessage, "error");
   }
@@ -803,13 +746,11 @@ async function resetExtension() {
     postText.value = "";
     toneSelect.value = "friendly";
     backendUrlInput.value = "https://assist-qw4s.onrender.com";
-    isCaptureAreaUnsupported = false;
     attachedImageData = "";
     updateAttachedImageStatus();
     showEmptyReplies();
     showEmptyHistory();
     syncToneMenu();
-    updateCaptureAreaAvailability();
     showStatus("Extension reset successfully.", "success");
   } catch (error) {
     showStatus("Could not reset extension data.", "error");
@@ -863,10 +804,6 @@ async function loadPendingCaptureResult() {
     if (pendingStatus?.status === "error") {
       const errorMessage = getCaptureErrorMessage(pendingStatus.message);
 
-      if (isCaptureUnsupportedError(errorMessage)) {
-        await markCaptureAreaUnsupported();
-      }
-
       showStatus(pendingImage ? "Visual context ready. Click Generate Replies." : errorMessage, pendingImage ? "success" : "error");
       await chrome.storage.local.remove(["pendingCapturedImage", "pendingCaptureStatus"]);
       return;
@@ -881,7 +818,6 @@ async function loadPendingCaptureResult() {
 }
 
 async function initializePopup() {
-  await loadCaptureAreaSupportState();
   await loadSettings();
   await loadDraftText();
   await loadSavedTone();
@@ -1058,16 +994,9 @@ chrome.runtime.onMessage.addListener((message) => {
 
   const errorMessage = getCaptureErrorMessage(message.message);
 
-  if (isCaptureUnsupportedError(errorMessage)) {
-    markCaptureAreaUnsupported().catch((error) => {
-      console.error("Could not save capture support state.", error);
-    });
-  }
-
   showStatus(message.imageData ? "Visual context ready. Click Generate Replies." : errorMessage, message.imageData ? "success" : "error");
   chrome.storage.local.remove(["pendingCapturedImage", "pendingCaptureStatus"]);
 });
 
 initializePopup();
 updateAttachedImageStatus();
-updateCaptureAreaAvailability();

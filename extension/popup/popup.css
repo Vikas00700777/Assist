@@ -400,17 +400,6 @@ button:focus-visible {
   gap: 7px;
 }
 
-.capture-area-wrap.is-unsupported #captureSelectedAreaButton {
-  display: none;
-}
-
-.helper-message {
-  margin: 0;
-  color: #a1a1aa;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
 #replyList {
   display: flex;
   flex-direction: column;
