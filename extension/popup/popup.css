@@ -131,6 +131,7 @@ input::placeholder {
 }
 
 textarea {
+  height: 108px;
   min-height: 108px;
   padding: 10px 11px;
   font-size: 13px;
@@ -138,11 +139,9 @@ textarea {
   resize: vertical;
 }
 
-.context-textarea {
-  min-height: 76px;
-}
-
+.context-textarea,
 .reply-textarea {
+  height: 108px;
   min-height: 108px;
 }
 
@@ -342,20 +341,29 @@ button:focus-visible {
 }
 
 .status-message {
-  min-height: 18px;
   margin: 0;
-  padding: 0 4px;
-  color: #a1a1aa;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #d4d4d8;
+  background: rgba(10, 10, 10, 0.96);
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.status-message:empty {
+  display: none;
 }
 
 .status-message[data-type="success"] {
   color: #86efac;
+  border-color: rgba(134, 239, 172, 0.34);
 }
 
 .status-message[data-type="error"] {
   color: #fca5a5;
+  border-color: rgba(252, 165, 165, 0.34);
 }
 
 .settings-status-message {
@@ -496,38 +504,27 @@ button:focus-visible {
   gap: 10px;
 }
 
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 34px;
-  color: #d4d4d8;
-  cursor: pointer;
-}
-
-.checkbox-row input {
-  width: 16px;
-  max-width: 16px;
-  height: 16px;
-  accent-color: #ffffff;
-}
-
-.checkbox-row input:disabled {
-  opacity: 1;
-}
-
 .attached-image-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  min-height: 34px;
+  min-height: 40px;
   color: #a1a1aa;
   font-size: 12px;
 }
 
+.attached-image-row span {
+  min-height: 40px;
+  border: 1px solid #262626;
+  border-radius: 11px;
+  padding: 10px 11px;
+  background: #0a0a0a;
+}
+
 .attached-image-row .small-btn {
   flex: 0 0 auto;
+  min-height: 40px;
 }
 
 .section-label {
@@ -573,11 +570,24 @@ button:focus-visible {
 
 .empty-message {
   margin: 0;
-  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 58px;
+  padding: 0 14px;
   color: #a1a1aa;
   background: #080808;
   font-size: 13px;
+  line-height: 1.35;
   text-align: center;
+}
+
+.empty-message[data-type="loading"] {
+  color: #d4d4d8;
+}
+
+.empty-message[data-type="error"] {
+  color: #fca5a5;
 }
 
 @keyframes popup-in {
@@ -663,15 +673,14 @@ button:focus-visible {
   }
 
   textarea {
-    min-height: 106px;
+    height: 108px;
+    min-height: 108px;
   }
 
-  .context-textarea {
-    min-height: 74px;
-  }
-
+  .context-textarea,
   .reply-textarea {
-    min-height: 110px;
+    height: 108px;
+    min-height: 108px;
   }
 
   .button-row,
@@ -681,8 +690,7 @@ button:focus-visible {
   }
 
   .attached-image-row {
-    align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .attached-image-row .small-btn {
@@ -748,7 +756,8 @@ button:focus-visible {
   }
 
   textarea {
-    min-height: 104px;
+    height: 108px;
+    min-height: 108px;
     max-height: 170px;
     resize: vertical;
     font-size: 14px;
@@ -756,6 +765,7 @@ button:focus-visible {
 
   .context-textarea,
   .reply-textarea {
+    height: 108px;
     min-height: 108px;
   }
 
@@ -773,8 +783,7 @@ button:focus-visible {
   }
 
   .attached-image-row {
-    align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .attached-image-row .small-btn {
@@ -782,7 +791,7 @@ button:focus-visible {
   }
 
   .status-message {
-    padding: 0 2px;
+    padding: 10px 12px;
   }
 
   #replyList {

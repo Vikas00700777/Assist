@@ -1,7 +1,6 @@
 const LAST_TONE_KEY = "lastTone";
 const RECENT_REPLIES_KEY = "recentReplies";
 const REPLY_HISTORY_KEY = "replyHistory";
-const DEFAULT_TONE_KEY = "defaultTone";
 const BACKEND_URL_KEY = "backendUrl";
 const DRAFT_TEXT = "draftText";
 const DRAFT_CONTEXT_TEXT = "draftContextText";
@@ -83,22 +82,13 @@ function resetAllExtensionData() {
   return chrome.storage.local.clear();
 }
 
-function saveDefaultTone(tone) {
-  return chrome.storage.local.set({ [DEFAULT_TONE_KEY]: tone });
-}
-
-async function getDefaultTone() {
-  const result = await chrome.storage.local.get(DEFAULT_TONE_KEY);
-  return result[DEFAULT_TONE_KEY] || "friendly";
-}
-
 function saveBackendUrl(url) {
   return chrome.storage.local.set({ [BACKEND_URL_KEY]: url });
 }
 
 async function getBackendUrl() {
   const result = await chrome.storage.local.get(BACKEND_URL_KEY);
-  const backendUrl = result[BACKEND_URL_KEY];
+  const backendUrl = (result[BACKEND_URL_KEY] || "").trim();
 
-  return backendUrl === DEFAULT_BACKEND_URL ? backendUrl : DEFAULT_BACKEND_URL;
+  return backendUrl || DEFAULT_BACKEND_URL;
 }

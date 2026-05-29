@@ -4,9 +4,9 @@ const MOBILE_CAPTURE_UNSUPPORTED_MESSAGE = "Capture Area is not supported by thi
 
 async function getBackendUrl() {
   const result = await chrome.storage.local.get(BACKEND_URL_KEY);
-  const backendUrl = result[BACKEND_URL_KEY];
+  const backendUrl = (result[BACKEND_URL_KEY] || "").trim();
 
-  return backendUrl === DEFAULT_BACKEND_URL ? backendUrl : DEFAULT_BACKEND_URL;
+  return backendUrl || DEFAULT_BACKEND_URL;
 }
 
 async function fetchWithTimeout(url, options = {}, timeout = 30000) {
@@ -23,7 +23,7 @@ async function fetchWithTimeout(url, options = {}, timeout = 30000) {
   }
 }
 
-async function saveCaptureStatus(status, message, text = "") {
+async function saveCaptureStatus(status, message, text = "", imageData = "") {
   const values = {
     pendingCaptureStatus: { status, message }
   };
@@ -32,10 +32,18 @@ async function saveCaptureStatus(status, message, text = "") {
     values.pendingExtractedText = text;
   }
 
+  if (imageData) {
+    values.pendingCapturedImage = imageData;
+  }
+
   await chrome.storage.local.set(values);
 
   if (!text) {
     await chrome.storage.local.remove("pendingExtractedText");
+  }
+
+  if (!imageData) {
+    await chrome.storage.local.remove("pendingCapturedImage");
   }
 }
 
@@ -62,8 +70,26 @@ async function blobToDataURL(blob) {
   return `data:${blob.type};base64,${btoa(binary)}`;
 }
 
+function dataURLToBlob(dataUrl) {
+  const match = /^data:([^;,]+);base64,(.+)$/.exec(dataUrl);
+
+  if (!match) {
+    throw new Error("Captured image data is invalid.");
+  }
+
+  const mimeType = match[1];
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: mimeType });
+}
+
 async function cropImageDataUrl(imageDataUrl, rect, devicePixelRatio) {
-  const sourceBlob = await fetch(imageDataUrl).then((response) => response.blob());
+  const sourceBlob = dataURLToBlob(imageDataUrl);
   const bitmap = await createImageBitmap(sourceBlob);
   const scale = devicePixelRatio || 1;
   const sourceX = Math.max(0, Math.round(rect.left * scale));
@@ -110,7 +136,7 @@ async function extractTextFromCroppedImage(imageData) {
       throw new Error("Selected area OCR timed out. Please try again.");
     }
 
-    throw error;
+    throw new Error("Backend OCR is not reachable. The captured image was attached instead.");
   }
 
   let data = {};
@@ -122,7 +148,10 @@ async function extractTextFromCroppedImage(imageData) {
   }
 
   if (!response.ok || !data.success) {
-    throw new Error(data.error || data.message || "Failed to extract text from selected area.");
+    const message = data.error || data.message || "Failed to extract text from selected area.";
+    throw new Error(message === "Failed to fetch"
+      ? "Backend OCR is not reachable. The captured image was attached instead."
+      : message);
   }
 
   return data.text || "";
@@ -151,13 +180,32 @@ async function handleCaptureSelectedArea(message, sender) {
       message.rect,
       message.devicePixelRatio
     );
-    const text = await extractTextFromCroppedImage(croppedImage);
+    let text = "";
 
-    await saveCaptureStatus("success", "Text extracted from selected area.", text);
+    try {
+      text = await extractTextFromCroppedImage(croppedImage);
+    } catch (error) {
+      const messageText = error.message || "OCR failed. The captured image was attached instead.";
+
+      await saveCaptureStatus("error", messageText, "", croppedImage);
+      notifyPopup({
+        success: false,
+        message: messageText,
+        imageData: croppedImage
+      });
+
+      return {
+        success: false,
+        message: messageText
+      };
+    }
+
+    await saveCaptureStatus("success", "Text extracted from selected area.", text, croppedImage);
     notifyPopup({
       success: true,
       message: "Text extracted from selected area.",
-      text
+      text,
+      imageData: croppedImage
     });
 
     return {
@@ -181,10 +229,10 @@ async function handleCaptureSelectedArea(message, sender) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type !== "CAPTURE_SELECTED_AREA") {
-    return false;
+  if (message.type === "CAPTURE_SELECTED_AREA") {
+    handleCaptureSelectedArea(message, sender).then(sendResponse);
+    return true;
   }
 
-  handleCaptureSelectedArea(message, sender).then(sendResponse);
-  return true;
+  return false;
 });

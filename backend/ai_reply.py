@@ -13,6 +13,32 @@ MODEL_NAME = "gemini-2.5-flash"
 REPLY_COUNT = 10
 _client_index = 0
 _client_lock = threading.Lock()
+TONE_INSTRUCTIONS = {
+    "friendly": (
+        "Friendly: warm, casual, approachable, and conversational. Use simple words, "
+        "light enthusiasm, and a human social tone."
+    ),
+    "professional": (
+        "Professional: polished, clear, respectful, and composed. Avoid slang, jokes, "
+        "excessive emotion, and overly casual phrasing."
+    ),
+    "funny": (
+        "Funny: witty, playful, and lightly humorous. Use clever phrasing or a small joke, "
+        "but do not be mean, cringe, offensive, or overdo it."
+    ),
+    "short": (
+        "Short: very concise and punchy. Keep each reply to one short sentence, ideally "
+        "under 12 words. No filler or long explanations."
+    ),
+    "supportive": (
+        "Supportive: encouraging, validating, kind, and emotionally steady. Sound like "
+        "someone backing the person up without being dramatic."
+    ),
+    "hinglish": (
+        "Hinglish: use natural Roman Hindi-English mix, like casual Indian social media. "
+        "Do not write in Devanagari. Keep it easy, conversational, and not forced."
+    ),
+}
 
 
 def get_gemini_client():
@@ -69,6 +95,12 @@ def _dedupe_replies(replies):
     return unique_replies
 
 
+def get_tone_instruction(tone):
+    normalized_tone = str(tone or "friendly").strip().lower()
+
+    return TONE_INSTRUCTIONS.get(normalized_tone, TONE_INSTRUCTIONS["friendly"])
+
+
 def parse_replies(output_text):
     output_text = str(output_text or "").strip()
     output_text = re.sub(r"^```(?:json)?\s*|\s*```$", "", output_text)
@@ -94,6 +126,8 @@ def _build_replies_prompt(text, tone, context="", fallback=False):
         else ""
     )
 
+    tone_instruction = get_tone_instruction(tone)
+
     return f"""
 {fallback_instruction}You are helping the user reply to someone on X.
 The user may provide original post context and a reply/comment.
@@ -110,8 +144,8 @@ Original Post / Context:
 Reply or Comment to Answer:
 {text}
 
-Tone:
-{tone}
+Mandatory Tone Style:
+{tone_instruction}
 
 Generate exactly 10 replies that answer the reply/comment using the original context.
 
@@ -133,6 +167,8 @@ Rules:
   }}
 - Each reply must be under 280 characters.
 - Make all 10 replies meaningfully different.
+- Make the selected tone obvious in every reply.
+- Do not use the same generic friendly style for every tone.
 - Make replies suitable for X/Twitter.
 - Do not include spam, engagement bait, scams, phishing, deceptive claims, or illegal activity.
 - Do not include abuse, hate, harassment, slurs, threats, intimidation, doxxing, or private personal data.
@@ -150,6 +186,8 @@ def _build_multimodal_replies_prompt(text, tone, context="", fallback=False):
         if fallback
         else ""
     )
+
+    tone_instruction = get_tone_instruction(tone)
 
     return f"""
 {fallback_instruction}You are helping the user reply on X.
@@ -183,8 +221,8 @@ Original Post / Context:
 Reply or Comment to Answer:
 {text}
 
-Tone:
-{tone}
+Mandatory Tone Style:
+{tone_instruction}
 
 Return only valid JSON in this exact shape:
 {{
@@ -201,6 +239,11 @@ Return only valid JSON in this exact shape:
     "reply ten"
   ]
 }}
+
+Rules:
+- Make all 10 replies meaningfully different.
+- Make the selected tone obvious in every reply.
+- Do not use the same generic friendly style for every tone.
 """
 
 

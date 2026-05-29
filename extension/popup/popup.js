@@ -14,17 +14,11 @@ const screenshotInput = document.getElementById("screenshotInput");
 const captureSelectedAreaButton = document.getElementById("captureSelectedAreaButton");
 const captureAreaWrap = document.getElementById("captureAreaWrap");
 const captureUnsupportedNote = document.getElementById("captureUnsupportedNote");
-const analyzeImageWithReply = document.getElementById("analyzeImageWithReply");
 const attachedImageStatus = document.getElementById("attachedImageStatus");
 const clearAttachedImageBtn = document.getElementById("clearAttachedImageBtn");
 const clearTextBtn = document.getElementById("clearTextBtn");
 const clearRepliesBtn = document.getElementById("clearRepliesBtn");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
-const defaultToneSelect = document.getElementById("defaultToneSelect");
-const defaultToneMenuButton = document.getElementById("defaultToneMenuButton");
-const defaultToneMenuLabel = document.getElementById("defaultToneMenuLabel");
-const defaultToneMenu = document.getElementById("defaultToneMenu");
-const defaultToneOptions = defaultToneMenu.querySelectorAll(".default-tone-option");
 const backendUrlInput = document.getElementById("backendUrlInput");
 const saveSettingsBtn = document.getElementById("saveSettingsBtn");
 const testBackendBtn = document.getElementById("testBackendBtn");
@@ -40,10 +34,25 @@ const CAPTURE_AREA_MOBILE_MESSAGE = "Capture Area is not supported on this mobil
 const LATEST_SELECTED_TEXT_KEY = "latestSelectedText";
 let attachedImageData = "";
 let isCaptureAreaUnsupported = false;
+let statusHideTimer = null;
 
 function showStatus(message, type = "info") {
+  if (statusHideTimer) {
+    clearTimeout(statusHideTimer);
+    statusHideTimer = null;
+  }
+
   statusMessage.textContent = message;
   statusMessage.dataset.type = type;
+
+  if (!message) {
+    return;
+  }
+
+  statusHideTimer = setTimeout(() => {
+    statusMessage.textContent = "";
+    statusHideTimer = null;
+  }, type === "error" ? 5200 : 3600);
 }
 
 function showBackendStatus(message, type = "info") {
@@ -60,6 +69,10 @@ function isMobileBrowser() {
 }
 
 function getCaptureErrorMessage(message) {
+  if ((message || "").toLowerCase() === "failed to fetch") {
+    return "Captured image attached. Click Generate Replies.";
+  }
+
   if ((message || "").includes("not supported by this mobile browser")) {
     return CAPTURE_AREA_MOBILE_MESSAGE;
   }
@@ -151,10 +164,6 @@ function syncToneMenu() {
   syncMenu(toneSelect, toneMenuLabel, toneOptions);
 }
 
-function syncDefaultToneMenu() {
-  syncMenu(defaultToneSelect, defaultToneMenuLabel, defaultToneOptions);
-}
-
 function setMenuOpen(menuElement, buttonElement, isOpen) {
   menuElement.hidden = !isOpen;
   buttonElement.setAttribute("aria-expanded", isOpen ? "true" : "false");
@@ -164,36 +173,44 @@ function setToneMenuOpen(isOpen) {
   setMenuOpen(toneMenu, toneMenuButton, isOpen);
 }
 
-function setDefaultToneMenuOpen(isOpen) {
-  setMenuOpen(defaultToneMenu, defaultToneMenuButton, isOpen);
-}
-
 function clearReplies() {
   replyList.innerHTML = "";
 }
 
-function enforceImageAnalysisAlwaysOn() {
-  analyzeImageWithReply.checked = true;
-  analyzeImageWithReply.disabled = true;
-}
-
 function updateAttachedImageStatus() {
-  enforceImageAnalysisAlwaysOn();
   attachedImageStatus.textContent = attachedImageData
-    ? "Image attached for AI analysis"
+    ? "Captured image attached for AI analysis"
     : "No image attached";
   clearAttachedImageBtn.disabled = !attachedImageData;
 }
 
 function clearAttachedImage() {
   attachedImageData = "";
-  enforceImageAnalysisAlwaysOn();
   updateAttachedImageStatus();
   showStatus("Attached image cleared.", "success");
 }
 
+function attachCapturedImage(imageData) {
+  if (!imageData) {
+    return false;
+  }
+
+  attachedImageData = imageData;
+  updateAttachedImageStatus();
+  return true;
+}
+
 function showEmptyReplies() {
-  replyList.innerHTML = '<p class="empty-message">No replies generated yet.</p>';
+  showReplyListMessage("Your suggested replies will appear here.");
+}
+
+function showReplyListMessage(message, type = "empty") {
+  const messageElement = document.createElement("p");
+  messageElement.className = "empty-message";
+  messageElement.dataset.type = type;
+  messageElement.textContent = message;
+
+  replyList.replaceChildren(messageElement);
 }
 
 function showEmptyHistory() {
@@ -359,6 +376,44 @@ async function getActiveTab() {
   return tabs[0] || null;
 }
 
+async function prepareAreaCaptureInTab(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      const scrollableElements = Array.from(document.querySelectorAll("*"))
+        .filter((element) => element.scrollTop || element.scrollLeft)
+        .map((element, index) => {
+          if (!element.dataset.aiReplyCaptureScrollId) {
+            element.dataset.aiReplyCaptureScrollId = `scroll-${Date.now()}-${index}`;
+          }
+
+          return {
+            id: element.dataset.aiReplyCaptureScrollId,
+            left: element.scrollLeft,
+            top: element.scrollTop
+          };
+        });
+
+      window.__aiReplyCaptureScrollSnapshot = {
+        windowLeft: window.scrollX || document.documentElement.scrollLeft || document.body.scrollLeft || 0,
+        windowTop: window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0,
+        elements: scrollableElements
+      };
+    }
+  });
+}
+
+async function openAreaCaptureInTab(tabId) {
+  await chrome.scripting.insertCSS({
+    target: { tabId },
+    files: ["content/capture.css"]
+  });
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["content/capture.js"]
+  });
+}
+
 async function insertReplyIntoActiveTab(replyText, insertButton) {
   try {
     setButtonLoading(insertButton, true, "Inserting...", "Insert");
@@ -467,23 +522,11 @@ async function startSelectedAreaCapture() {
     await chrome.storage.local.remove("pendingExtractedText");
 
     setCaptureLoading(true);
-    const response = await chrome.tabs.sendMessage(activeTab.id, {
-      type: "START_AREA_CAPTURE"
-    });
+    await prepareAreaCaptureInTab(activeTab.id);
+    await openAreaCaptureInTab(activeTab.id);
     setCaptureLoading(false);
 
-    if (!response || !response.success) {
-      const errorMessage = getCaptureErrorMessage(response?.message || "Could not start area capture.");
-
-      if (isCaptureUnsupportedError(errorMessage)) {
-        await markCaptureAreaUnsupported();
-      }
-
-      showStatus(errorMessage, "error");
-      return;
-    }
-
-    showStatus(response.message || "Drag with finger to select area. Tap Cancel to stop.", "info");
+    showStatus("Drag to select an area. Press Esc or Cancel to stop.", "info");
     window.close();
   } catch (error) {
     setCaptureLoading(false);
@@ -550,14 +593,14 @@ async function handleGenerateReplies() {
   }
 
   setLoading(true);
-  clearReplies();
-  showStatus("Generating replies...", "info");
+  showReplyListMessage("Generating thoughtful reply suggestions...", "loading");
+  showStatus("", "info");
 
   try {
     const result = await generateRepliesFromAPI(text, tone, replyText ? context : "", imageData);
 
     if (!result.success) {
-      showEmptyReplies();
+      showReplyListMessage(result.message || "We could not generate replies. Please try again.", "error");
       showStatus(result.message || "Failed to generate replies.", "error");
       return;
     }
@@ -571,7 +614,7 @@ async function handleGenerateReplies() {
 
     showStatus("Replies generated successfully.", "success");
   } catch (error) {
-    showEmptyReplies();
+    showReplyListMessage("We could not generate replies. Please try again.", "error");
     showStatus("Failed to generate replies.", "error");
   } finally {
     setLoading(false);
@@ -581,12 +624,9 @@ async function handleGenerateReplies() {
 async function loadSavedTone() {
   try {
     const lastTone = await getLastTone();
-    const defaultTone = await getDefaultTone();
 
     if (lastTone) {
       toneSelect.value = lastTone;
-    } else if (defaultTone) {
-      toneSelect.value = defaultTone;
     }
 
     syncToneMenu();
@@ -597,12 +637,9 @@ async function loadSavedTone() {
 
 async function loadSettings() {
   try {
-    const defaultTone = await getDefaultTone();
     const backendUrl = await getBackendUrl();
 
-    defaultToneSelect.value = defaultTone;
     backendUrlInput.value = backendUrl;
-    syncDefaultToneMenu();
   } catch (error) {
     console.error("Could not load settings.", error);
   }
@@ -638,7 +675,6 @@ function saveCurrentDraftContextText() {
 }
 
 async function saveSettings() {
-  const defaultTone = defaultToneSelect.value;
   const backendUrl = backendUrlInput.value.trim().replace(/\/$/, "");
 
   if (backendUrl !== "https://assist-qw4s.onrender.com") {
@@ -649,10 +685,7 @@ async function saveSettings() {
   }
 
   try {
-    await saveDefaultTone(defaultTone);
     await saveBackendUrl(backendUrl);
-    toneSelect.value = defaultTone;
-    syncToneMenu();
     showStatus("Settings saved.", "success");
   } catch (error) {
     showStatus("Could not save settings.", "error");
@@ -661,7 +694,6 @@ async function saveSettings() {
 
 async function checkBackendStatus() {
   setButtonLoading(testBackendBtn, true, "Checking...", "Check Backend");
-  showStatus("Checking backend connection...", "info");
   showBackendStatus("Checking backend connection...", "info");
 
   try {
@@ -669,17 +701,14 @@ async function checkBackendStatus() {
 
     if (!result.success) {
       const message = result.message || "Backend is not running.";
-      showStatus(message, "error");
       showBackendStatus(message, "error");
       return;
     }
 
     const message = result.message || "Backend is connected.";
-    showStatus(message, "success");
     showBackendStatus(message, "success");
   } catch (error) {
     const message = "Backend is not running or not reachable.";
-    showStatus(message, "error");
     showBackendStatus(message, "error");
   } finally {
     setButtonLoading(testBackendBtn, false, "Checking...", "Check Backend");
@@ -699,14 +728,13 @@ async function resetExtension() {
     contextText.value = "";
     postText.value = "";
     toneSelect.value = "friendly";
-    defaultToneSelect.value = "friendly";
     backendUrlInput.value = "https://assist-qw4s.onrender.com";
     isCaptureAreaUnsupported = false;
-    enforceImageAnalysisAlwaysOn();
+    attachedImageData = "";
+    updateAttachedImageStatus();
     showEmptyReplies();
     showEmptyHistory();
     syncToneMenu();
-    syncDefaultToneMenu();
     updateCaptureAreaAvailability();
     showStatus("Extension reset successfully.", "success");
   } catch (error) {
@@ -731,17 +759,24 @@ async function loadPendingCaptureResult() {
   try {
     const result = await chrome.storage.local.get([
       "pendingExtractedText",
+      "pendingCapturedImage",
       "pendingCaptureStatus"
     ]);
     const pendingStatus = result.pendingCaptureStatus;
     const pendingText = result.pendingExtractedText;
+    const pendingImage = result.pendingCapturedImage;
 
     if (pendingText) {
+      attachCapturedImage(pendingImage);
       postText.value = pendingText;
       showStatus(pendingStatus?.message || "Text extracted from selected area.", "success");
       await saveDraftText(postText.value);
-      await chrome.storage.local.remove(["pendingExtractedText", "pendingCaptureStatus"]);
+      await chrome.storage.local.remove(["pendingExtractedText", "pendingCapturedImage", "pendingCaptureStatus"]);
       return;
+    }
+
+    if (pendingImage) {
+      attachCapturedImage(pendingImage);
     }
 
     if (pendingStatus?.status === "error") {
@@ -751,8 +786,8 @@ async function loadPendingCaptureResult() {
         await markCaptureAreaUnsupported();
       }
 
-      showStatus(errorMessage, "error");
-      await chrome.storage.local.remove("pendingCaptureStatus");
+      showStatus(pendingImage ? "Captured image attached. Click Generate Replies." : errorMessage, pendingImage ? "success" : "error");
+      await chrome.storage.local.remove(["pendingCapturedImage", "pendingCaptureStatus"]);
       return;
     }
 
@@ -787,7 +822,6 @@ async function handleScreenshotSelected(event) {
   try {
     const imageData = await convertImageToDataURL(file);
     attachedImageData = imageData;
-    enforceImageAnalysisAlwaysOn();
     updateAttachedImageStatus();
     showStatus("Image attached for analysis. Extracting text...", "info");
 
@@ -816,7 +850,6 @@ function toggleDetails(detailsElement) {
 function handleKeyboardShortcuts(event) {
   if (event.key === "Escape") {
     setToneMenuOpen(false);
-    setDefaultToneMenuOpen(false);
     statusMessage.textContent = "";
     delete statusMessage.dataset.type;
     return;
@@ -883,18 +916,6 @@ toneOptions.forEach((option) => {
   });
 });
 
-defaultToneMenuButton.addEventListener("click", () => {
-  setDefaultToneMenuOpen(defaultToneMenu.hidden);
-});
-
-defaultToneOptions.forEach((option) => {
-  option.addEventListener("click", () => {
-    defaultToneSelect.value = option.dataset.tone;
-    syncDefaultToneMenu();
-    setDefaultToneMenuOpen(false);
-  });
-});
-
 toneSelect.addEventListener("change", () => {
   syncToneMenu();
 
@@ -903,15 +924,9 @@ toneSelect.addEventListener("change", () => {
   });
 });
 
-defaultToneSelect.addEventListener("change", syncDefaultToneMenu);
-
 document.addEventListener("click", (event) => {
   if (!toneMenu.hidden && !event.target.closest("#toneSelectMenu")) {
     setToneMenuOpen(false);
-  }
-
-  if (!defaultToneMenu.hidden && !event.target.closest("#defaultToneSelectMenu")) {
-    setDefaultToneMenuOpen(false);
   }
 });
 
@@ -947,11 +962,13 @@ chrome.runtime.onMessage.addListener((message) => {
     return;
   }
 
+  attachCapturedImage(message.imageData);
+
   if (message.success && message.text) {
     postText.value = message.text;
     showStatus(message.message || "Text extracted from selected area.", "success");
     saveCurrentDraftText();
-    chrome.storage.local.remove(["pendingExtractedText", "pendingCaptureStatus"]);
+    chrome.storage.local.remove(["pendingExtractedText", "pendingCapturedImage", "pendingCaptureStatus"]);
     return;
   }
 
@@ -963,11 +980,10 @@ chrome.runtime.onMessage.addListener((message) => {
     });
   }
 
-  showStatus(errorMessage, "error");
-  chrome.storage.local.remove("pendingCaptureStatus");
+  showStatus(message.imageData ? "Captured image attached. Click Generate Replies." : errorMessage, message.imageData ? "success" : "error");
+  chrome.storage.local.remove(["pendingCapturedImage", "pendingCaptureStatus"]);
 });
 
 initializePopup();
-enforceImageAnalysisAlwaysOn();
 updateAttachedImageStatus();
 updateCaptureAreaAvailability();
